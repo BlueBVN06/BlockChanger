@@ -6,9 +6,9 @@ A single class that offers very fast block placing, high performance and allowin
   
 More Information can be found at: https://www.spigotmc.org/threads/methods-for-changing-massive-amount-of-blocks-up-to-14m-blocks-s.395868/
 
-### Setup
+## Setup
 Just put the [BlockChanger](https://github.com/Devlrxxh/BlockChanger/blob/master/src/main/java/dev/lrxh/nms/blockChanger/BlockChanger.java) class in your project  
-### Usage
+## Usage
 ```java
 BlockChanger blockChanger = new BlockChanger(main, false);
 
@@ -19,4 +19,14 @@ blockChanger.setBlock(location, blockData);
 
 // Run this after placing all your block(s)
 blockChanger.notifyChanges();
+``` 
+### Snapshot System
+```java
+Location min = ...;
+Location max = ...;
+BlockChanger.Snapshot snapshot;
+
+snapshot = blockChanger.capture(min, max);
+                
+blockChanger.revert(snapshot);
 ``` 
