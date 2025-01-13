@@ -13,7 +13,7 @@ Just put the [BlockChanger](https://github.com/Devlrxxh/BlockChanger/blob/master
 BlockChanger blockChanger = new BlockChanger(main, false);
 
 Location location = ...;
-BlockData blockData = ....;
+BlockData blockData = ...;
 
 blockChanger.setBlock(location, blockData);
 
