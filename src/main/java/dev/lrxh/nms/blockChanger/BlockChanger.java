@@ -3,11 +3,15 @@ package dev.lrxh.nms.blockChanger;
 import lombok.SneakyThrows;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.*;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public final class BlockChanger {
@@ -162,6 +166,38 @@ public final class BlockChanger {
         chunks.add(location.getChunk());
     }
 
+    public Snapshot capture(Location min, Location max) {
+        Snapshot snapshot = new Snapshot();
+        World world = max.getWorld();
+        int minX = Math.min(min.getBlockX(), max.getBlockX());
+        int minY = Math.min(min.getBlockY(), max.getBlockY());
+        int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
+
+        int maxX = Math.max(min.getBlockX(), max.getBlockX());
+        int maxY = Math.max(min.getBlockY(), max.getBlockY());
+        int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Block block = min.getWorld().getBlockAt(x, y, z);
+                    Location location = new Location(world, x, y, z);
+                    snapshot.add(location, block.getBlockData());
+                }
+            }
+        }
+
+        return snapshot;
+    }
+
+    public void revert(Snapshot snapshot) {
+        for (Map.Entry<Location, BlockData> entry : snapshot.snapshot.entrySet()) {
+            setBlock(entry.getKey(), entry.getValue());
+        }
+
+        notifyChanges();
+    }
+
     public void notifyChanges() {
         for (Chunk chunk : chunks) {
             chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
@@ -187,7 +223,6 @@ public final class BlockChanger {
 
         return CHUNK.cast(IChunkAccess);
     }
-
 
     private Class<?> loadClass(String className) throws ClassNotFoundException {
         return Class.forName(className);
@@ -217,5 +252,17 @@ public final class BlockChanger {
         }
 
         return 0;
+    }
+
+    public static class Snapshot {
+        protected HashMap<Location, BlockData> snapshot;
+
+        public Snapshot() {
+            snapshot = new HashMap<>();
+        }
+
+        protected void add(Location location, BlockData blockData) {
+            snapshot.put(location, blockData);
+        }
     }
 }
