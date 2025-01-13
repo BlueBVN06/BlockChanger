@@ -1,0 +1,4 @@
+name: BlockChanger
+version: '1.0-SNAPSHOT'
+main: dev.lrxh.nms.blockChanger.BlockChanger
+api-version: '1.18'
