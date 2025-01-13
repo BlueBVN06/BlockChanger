@@ -8,7 +8,10 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,7 +38,7 @@ public final class BlockChanger {
     // NMS FIELDS
     private Field CHUNK_STATUS_FULL;
 
-    public BlockChanger (JavaPlugin instance, boolean debug) {
+    public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
         MINOR_VERSION = extractMinorVersion();
         chunks = new HashSet<>();
@@ -58,14 +61,13 @@ public final class BlockChanger {
             CRAFT_BUKKIT = "org.bukkit.craftbukkit." + plugin.getServer().getClass().getPackage().getName().replace(".", ",").split(",")[3] + ".";
         }
 
-        Class<?> i_BLOCK_DATA = null;
+        Class<?> i_BLOCK_DATA;
 
         if (MINOR_VERSION != 16) {
             i_BLOCK_DATA = loadClass(NET_MINECRAFT + "world.level.block.state.IBlockData");
         } else {
             i_BLOCK_DATA = loadClass(NET_MINECRAFT + "IBlockData");
         }
-
         debug("I_BLOCK_DATA Loaded");
 
         if (MINOR_VERSION != 16) {
@@ -75,11 +77,11 @@ public final class BlockChanger {
         }
         debug("CHUNK Loaded");
 
-        Class<?> CHUNK_SECTION = null;
+        Class<?> CHUNK_SECTION;
 
         if (MINOR_VERSION != 16) {
             CHUNK_SECTION = loadClass(NET_MINECRAFT + "world.level.chunk.ChunkSection");
-        } else{
+        } else {
             CHUNK_SECTION = loadClass(NET_MINECRAFT + "ChunkSection");
         }
         debug("CHUNK_SECTION Loaded");
@@ -87,7 +89,7 @@ public final class BlockChanger {
         CRAFT_CHUNK = loadClass(CRAFT_BUKKIT + "CraftChunk");
         debug("CRAFT_CHUNK Loaded");
 
-        Class<?> i_CHUNK_ACCESS = null;
+        Class<?> i_CHUNK_ACCESS;
 
         if (MINOR_VERSION != 16) {
             i_CHUNK_ACCESS = loadClass(NET_MINECRAFT + "world.level.chunk.IChunkAccess");
@@ -137,7 +139,6 @@ public final class BlockChanger {
         } else {
             SET_BLOCK_STATE = getDeclaredMethod(CHUNK_SECTION, "setType", int.class, int.class, int.class, i_BLOCK_DATA);
         }
-
         debug("SET_BLOCK_STATE Loaded");
 
         if (supports(21)) {
@@ -197,9 +198,9 @@ public final class BlockChanger {
 
         Object nmsChunk = getChunkNMS(location.getChunk()); // NET.MC.CHUNK
 
-        Object cs  = getSections(nmsChunk)[y >> 4]; // ORG.BUKKIT.CHUNKSECTION
+        Object cs = getSections(nmsChunk)[y >> 4]; // ORG.BUKKIT.CHUNKSECTION
 
-        SET_BLOCK_STATE.invoke(cs,x & 15, y & 15, z & 15, iBlockData); // ORG.BUKKIT.CHUNKSECTION
+        SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, iBlockData); // ORG.BUKKIT.CHUNKSECTION
 
         chunks.add(location.getChunk());
     }
