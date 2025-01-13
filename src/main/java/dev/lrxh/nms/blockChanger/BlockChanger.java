@@ -207,7 +207,7 @@ public final class BlockChanger {
     }
 
     @SneakyThrows
-    public Object[] getSections(Object nmsChunk) {
+    private Object[] getSections(Object nmsChunk) {
         return (Object[]) GET_SECTIONS.invoke(nmsChunk);
     }
 
