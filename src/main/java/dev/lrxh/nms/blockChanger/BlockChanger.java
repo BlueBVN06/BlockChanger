@@ -28,12 +28,14 @@ public final class BlockChanger {
     private Class<?> CHUNK;
     private Class<?> CRAFT_CHUNK;
     private Class<?> CRAFT_BLOCK_DATA;
+    private Class<?> LEVEL_HEIGHT_ACCESSOR;
 
     // NMS METHODS
     private Method GET_STATE;
     private Method GET_HANDLE;
     private Method GET_SECTIONS;
     private Method SET_BLOCK_STATE;
+    private Method GET_SECTION_INDEX;
 
     // NMS FIELDS
     private Field CHUNK_STATUS_FULL;
@@ -147,6 +149,17 @@ public final class BlockChanger {
             CHUNK_STATUS_FULL = getDeclaredField(CHUNK_STATUS, "n");
         }
         debug("CHUNK_STATUS_FULL Loaded");
+
+        LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "world.level.LevelHeightAccessor");
+        debug("LEVEL_HEIGHT_ACCESSOR Loaded");
+
+        if (MINOR_VERSION == 21) {
+            GET_SECTION_INDEX = getDeclaredMethod(LEVEL_HEIGHT_ACCESSOR, "f", int.class);
+        } else if (supports(17)) {
+            GET_SECTION_INDEX = getDeclaredMethod(LEVEL_HEIGHT_ACCESSOR, "e", int.class);
+        }
+
+        debug("GET_SECTION_INDEX Loaded");
     }
 
     private void printAllMethods(Class<?> clazz) {
@@ -198,7 +211,18 @@ public final class BlockChanger {
 
         Object nmsChunk = getChunkNMS(location.getChunk()); // NET.MC.CHUNK
 
-        Object cs = getSections(nmsChunk)[y >> 4]; // ORG.BUKKIT.CHUNKSECTION
+        Object cs;
+        if (LEVEL_HEIGHT_ACCESSOR != null) {
+            Object LevelHeightAccessor = LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
+
+            int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
+
+            cs = getSections(nmsChunk)[i]; // ORG.BUKKIT.CHUNKSECTION
+        } else {
+            cs = getSections(nmsChunk)[y >> 4]; // ORG.BUKKIT.CHUNKSECTION
+        }
+
+        if (cs == null) return;
 
         SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, iBlockData); // ORG.BUKKIT.CHUNKSECTION
 
