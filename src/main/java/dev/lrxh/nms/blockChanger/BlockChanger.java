@@ -1,4 +1,4 @@
-package dev.lrxh.nms.blockChanger;
+package dev.lrxh.neptune.utils;
 
 import lombok.SneakyThrows;
 import org.bukkit.Chunk;
@@ -12,17 +12,14 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public final class BlockChanger {
     private final int MINOR_VERSION;
     private final JavaPlugin plugin;
     private final boolean debug;
 
-    private final Set<Chunk> chunks;
+    private final HashSet<Chunk> chunks;
 
     // NMS Classes
     private Class<?> CHUNK;
@@ -36,9 +33,11 @@ public final class BlockChanger {
     private Method GET_SECTIONS;
     private Method SET_BLOCK_STATE;
     private Method GET_SECTION_INDEX;
+    private Method HAS_ONLY_AIR;
 
     // NMS FIELDS
     private Field CHUNK_STATUS_FULL;
+    private Field NON_EMPTY_BLOCK_COUNT;
 
     public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
@@ -53,6 +52,11 @@ public final class BlockChanger {
     private void init() {
         String CRAFT_BUKKIT;
         String NET_MINECRAFT = "net.minecraft.";
+
+        if (!supports(16)) {
+            plugin.getLogger().info("Version Unsupported by BlockChanger");
+            return;
+        }
 
         if (MINOR_VERSION == 16) {
             NET_MINECRAFT = "net.minecraft.server." + plugin.getServer().getClass().getPackage().getName().replace(".", ",").split(",")[3] + ".";
@@ -160,6 +164,22 @@ public final class BlockChanger {
         }
 
         debug("GET_SECTION_INDEX Loaded");
+
+        if(supports(18)) {
+            HAS_ONLY_AIR = getDeclaredMethod(CHUNK_SECTION, "c");
+        }
+
+        debug("HAS_ONLY_AIR Loaded");
+
+        if (HAS_ONLY_AIR == null) {
+            if (MINOR_VERSION == 17) {
+                NON_EMPTY_BLOCK_COUNT = getDeclaredField(CHUNK_SECTION, "f");
+            } else if (MINOR_VERSION == 16) {
+                NON_EMPTY_BLOCK_COUNT = getDeclaredField(CHUNK_SECTION, "c");
+            }
+
+            debug("NON_EMPTY_BLOCK_COUNT Loaded");
+        }
     }
 
     private void printAllMethods(Class<?> clazz) {
@@ -199,37 +219,46 @@ public final class BlockChanger {
         if (debug) plugin.getLogger().info(message);
     }
 
-    public void setBlock(Location location, BlockData blockData) {
-        setBlock(location, getBlockDataNMS(blockData));
-    }
-
     @SneakyThrows
-    private void setBlock(Location location, Object iBlockData) {
+    public void setBlock(Location location, BlockData blockData) {
+        Object nmsBlockData = getBlockDataNMS(blockData);
+
         int x = location.getBlockX();
         int y = location.getBlockY();
         int z = location.getBlockZ();
 
         Object nmsChunk = getChunkNMS(location.getChunk()); // NET.MC.CHUNK
 
-        Object cs;
+        Object cs; // ORG.BUKKIT.CHUNKSECTION
         if (LEVEL_HEIGHT_ACCESSOR != null) {
             Object LevelHeightAccessor = LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
 
             int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
 
-            cs = getSections(nmsChunk)[i]; // ORG.BUKKIT.CHUNKSECTION
+            cs = getSections(nmsChunk)[i];
         } else {
-            cs = getSections(nmsChunk)[y >> 4]; // ORG.BUKKIT.CHUNKSECTION
+            cs = getSections(nmsChunk)[y >> 4];
         }
 
         if (cs == null) return;
 
-        SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, iBlockData); // ORG.BUKKIT.CHUNKSECTION
+        if (HAS_ONLY_AIR != null) {
+            if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
+        } else {
+            if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0) return;
+        }
+
+        Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData); // ORG.BUKKIT.CHUNKSECTION
+
+        if (result == null) return;
 
         chunks.add(location.getChunk());
     }
 
-    public Snapshot capture(Location min, Location max) {
+    public Snapshot capture(Location pos1, Location pos2) {
+        Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
+        Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
+
         Snapshot snapshot = new Snapshot();
         World world = max.getWorld();
         int minX = Math.min(min.getBlockX(), max.getBlockX());
@@ -257,7 +286,6 @@ public final class BlockChanger {
         for (Map.Entry<Location, BlockData> entry : snapshot.snapshot.entrySet()) {
             setBlock(entry.getKey(), entry.getValue());
         }
-
         notifyChanges();
     }
 
