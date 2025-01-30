@@ -1,6 +1,7 @@
-package dev.lrxh.neptune.utils;
+package dev.lrxh.nms.blockChanger;
 
 import lombok.SneakyThrows;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -8,11 +9,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Parameter;
-import java.util.*;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 
 public final class BlockChanger {
     private final int MINOR_VERSION;
@@ -20,23 +23,21 @@ public final class BlockChanger {
     private final boolean debug;
 
     private final HashSet<Chunk> chunks;
-
+    private final HashMap<Object, Object> cache;
     // NMS Classes
     private Class<?> CHUNK;
     private Class<?> CRAFT_CHUNK;
     private Class<?> CRAFT_BLOCK_DATA;
     private Class<?> LEVEL_HEIGHT_ACCESSOR;
-
-    // NMS METHODS
-    private Method GET_STATE;
-    private Method GET_HANDLE;
-    private Method GET_SECTIONS;
-    private Method SET_BLOCK_STATE;
-    private Method GET_SECTION_INDEX;
-    private Method HAS_ONLY_AIR;
-
-    // NMS FIELDS
-    private Field CHUNK_STATUS_FULL;
+    // NMS MethodHandles
+    private MethodHandle GET_STATE;
+    private MethodHandle GET_HANDLE;
+    private MethodHandle GET_SECTIONS;
+    private MethodHandle SET_BLOCK_STATE;
+    private MethodHandle GET_SECTION_INDEX;
+    private MethodHandle HAS_ONLY_AIR;
+    // NMS Fields
+    private Field CHUNK_STATUS_EMPTY;
     private Field NON_EMPTY_BLOCK_COUNT;
 
     public BlockChanger(JavaPlugin instance, boolean debug) {
@@ -44,6 +45,7 @@ public final class BlockChanger {
         MINOR_VERSION = extractMinorVersion();
         chunks = new HashSet<>();
         this.debug = debug;
+        this.cache = new HashMap<>();
 
         init();
     }
@@ -119,54 +121,55 @@ public final class BlockChanger {
         }
         debug("CHUNK_STATUS Loaded");
 
-        GET_STATE = getDeclaredMethod(CRAFT_BLOCK_DATA, "getState");
+        // MethodHandles for NMS methods
+        GET_STATE = getMethodHandle(CRAFT_BLOCK_DATA, "getState", i_BLOCK_DATA);
         debug("GET_STATE Loaded");
 
         if (MINOR_VERSION != 16) {
-            GET_HANDLE = getDeclaredMethod(CRAFT_CHUNK, "getHandle", CHUNK_STATUS);
+            GET_HANDLE = getMethodHandle(CRAFT_CHUNK, "getHandle", i_CHUNK_ACCESS, CHUNK_STATUS);
         } else {
-            GET_HANDLE = getDeclaredMethod(CRAFT_CHUNK, "getHandle");
+            GET_HANDLE = getMethodHandle(CRAFT_CHUNK, "getHandle", i_CHUNK_ACCESS);
         }
         debug("GET_HANDLE Loaded");
 
         if (supports(21) || MINOR_VERSION == 16) {
-            GET_SECTIONS = getDeclaredMethod(i_CHUNK_ACCESS, "getSections");
+            GET_SECTIONS = getMethodHandle(i_CHUNK_ACCESS, "getSections", Object[].class);
         } else {
-            GET_SECTIONS = getDeclaredMethod(i_CHUNK_ACCESS, "d");
+            GET_SECTIONS = getMethodHandle(i_CHUNK_ACCESS, "d", Array.newInstance(CHUNK_SECTION, 0).getClass());
         }
         debug("GET_SECTIONS Loaded");
 
         if (MINOR_VERSION != 16) {
             if (supports(21)) {
-                SET_BLOCK_STATE = getDeclaredMethod(CHUNK_SECTION, "setBlockState", int.class, int.class, int.class, i_BLOCK_DATA);
+                SET_BLOCK_STATE = getMethodHandle(CHUNK_SECTION, "setBlockState", i_BLOCK_DATA, int.class, int.class, int.class, i_BLOCK_DATA);
             } else {
-                SET_BLOCK_STATE = getDeclaredMethod(CHUNK_SECTION, "a", int.class, int.class, int.class, i_BLOCK_DATA);
+                SET_BLOCK_STATE = getMethodHandle(CHUNK_SECTION, "a", i_BLOCK_DATA, int.class, int.class, int.class, i_BLOCK_DATA);
             }
         } else {
-            SET_BLOCK_STATE = getDeclaredMethod(CHUNK_SECTION, "setType", int.class, int.class, int.class, i_BLOCK_DATA);
+            SET_BLOCK_STATE = getMethodHandle(CHUNK_SECTION, "setType", i_BLOCK_DATA, int.class, int.class, int.class, i_BLOCK_DATA);
         }
         debug("SET_BLOCK_STATE Loaded");
 
         if (supports(21)) {
-            CHUNK_STATUS_FULL = getDeclaredField(CHUNK_STATUS, "FULL");
+            CHUNK_STATUS_EMPTY = getDeclaredField(CHUNK_STATUS, "EMPTY");
         } else {
-            CHUNK_STATUS_FULL = getDeclaredField(CHUNK_STATUS, "n");
+            CHUNK_STATUS_EMPTY = getDeclaredField(CHUNK_STATUS, "c");
         }
-        debug("CHUNK_STATUS_FULL Loaded");
+        debug("CHUNK_STATUS_EMPTY Loaded");
 
         LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "world.level.LevelHeightAccessor");
         debug("LEVEL_HEIGHT_ACCESSOR Loaded");
 
         if (MINOR_VERSION == 21) {
-            GET_SECTION_INDEX = getDeclaredMethod(LEVEL_HEIGHT_ACCESSOR, "f", int.class);
+            GET_SECTION_INDEX = getMethodHandle(LEVEL_HEIGHT_ACCESSOR, "f", int.class, int.class);
         } else if (supports(17)) {
-            GET_SECTION_INDEX = getDeclaredMethod(LEVEL_HEIGHT_ACCESSOR, "e", int.class);
+            GET_SECTION_INDEX = getMethodHandle(LEVEL_HEIGHT_ACCESSOR, "e", int.class, int.class);
         }
 
         debug("GET_SECTION_INDEX Loaded");
 
-        if(supports(18)) {
-            HAS_ONLY_AIR = getDeclaredMethod(CHUNK_SECTION, "c");
+        if (supports(18)) {
+            HAS_ONLY_AIR = getMethodHandle(CHUNK_SECTION, "c", boolean.class);
         }
 
         debug("HAS_ONLY_AIR Loaded");
@@ -181,6 +184,7 @@ public final class BlockChanger {
             debug("NON_EMPTY_BLOCK_COUNT Loaded");
         }
     }
+
 
     private void printAllMethods(Class<?> clazz) {
         Method[] methods = clazz.getDeclaredMethods();
@@ -245,7 +249,7 @@ public final class BlockChanger {
         if (HAS_ONLY_AIR != null) {
             if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
         } else {
-            if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0) return;
+            if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
         }
 
         Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData); // ORG.BUKKIT.CHUNKSECTION
@@ -283,10 +287,12 @@ public final class BlockChanger {
     }
 
     public void revert(Snapshot snapshot) {
-        for (Map.Entry<Location, BlockData> entry : snapshot.snapshot.entrySet()) {
-            setBlock(entry.getKey(), entry.getValue());
-        }
-        notifyChanges();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            for (Map.Entry<Location, BlockData> entry : snapshot.snapshot.entrySet()) {
+                setBlock(entry.getKey(), entry.getValue());
+            }
+            notifyChanges();
+        });
     }
 
     public void notifyChanges() {
@@ -295,6 +301,13 @@ public final class BlockChanger {
         }
 
         chunks.clear();
+        cache.clear();
+    }
+
+    @SneakyThrows
+    private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) {
+        MethodHandles.Lookup lookup = MethodHandles.lookup();
+        return lookup.findVirtual(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
     }
 
     @SneakyThrows
@@ -304,11 +317,20 @@ public final class BlockChanger {
 
     @SneakyThrows
     private Object getBlockDataNMS(BlockData blockData) {
-        return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
+        Object c = cache.get(blockData);
+        if (c != null) return c;
+
+        Object result = GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
+
+        cache.put(blockData, result);
+        return result;
     }
 
     @SneakyThrows
     private Object getChunkNMS(Chunk chunk) {
+        Object c = cache.get(chunk);
+        if (c != null) return c;
+
         if (MINOR_VERSION == 16) {
             Object craftChunk = CRAFT_CHUNK.cast(chunk);
 
@@ -316,25 +338,25 @@ public final class BlockChanger {
         }
 
         Object craftChunk = CRAFT_CHUNK.cast(chunk);
-        Object IChunkAccess = GET_HANDLE.invoke(craftChunk, CHUNK_STATUS_FULL.get(null));
+        Object IChunkAccess = GET_HANDLE.invoke(craftChunk, CHUNK_STATUS_EMPTY.get(null));
 
-        return CHUNK.cast(IChunkAccess);
+        Object result = CHUNK.cast(IChunkAccess);
+
+        cache.put(chunk, result);
+
+        return result;
     }
 
-    private Class<?> loadClass(String className) throws ClassNotFoundException {
+    @SneakyThrows
+    private Class<?> loadClass(String className) {
         return Class.forName(className);
     }
 
-    private Field getDeclaredField(Class<?> clazz, String fieldName) throws NoSuchFieldException {
+    @SneakyThrows
+    private Field getDeclaredField(Class<?> clazz, String fieldName) {
         Field field = clazz.getDeclaredField(fieldName);
         field.setAccessible(true);
         return field;
-    }
-
-    private Method getDeclaredMethod(Class<?> clazz, String methodName, Class<?>... parameterTypes) throws NoSuchMethodException {
-        Method method = clazz.getDeclaredMethod(methodName, parameterTypes);
-        method.setAccessible(true);
-        return method;
     }
 
     private boolean supports(int version) {
@@ -344,10 +366,8 @@ public final class BlockChanger {
     private int extractMinorVersion() {
         String[] versionParts = plugin.getServer().getBukkitVersion().split("-")[0].split("\\.");
         if (versionParts.length >= 2) {
-
             return Integer.parseInt(versionParts[1]);
         }
-
         return 0;
     }
 
