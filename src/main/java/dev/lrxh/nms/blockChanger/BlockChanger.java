@@ -1,4 +1,4 @@
-package dev.lrxh.nms.blockChanger;
+package dev.lrxh.neptune.utils;
 
 import lombok.SneakyThrows;
 import org.bukkit.Bukkit;
@@ -14,15 +14,16 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class BlockChanger {
     private final int MINOR_VERSION;
     private final JavaPlugin plugin;
     private final boolean debug;
-    private final HashMap<Object, Object> worldCache;
-    private final HashMap<Object, Object> chunkCache;
-    private final HashMap<Object, Object> levelAccessorCache;
-    private final HashMap<Object, Object> blockDataCache;
+    private final ConcurrentHashMap<Object, Object> worldCache;
+    private final ConcurrentHashMap<Object, Object> chunkCache;
+    private final ConcurrentHashMap<Object, Object> levelAccessorCache;
+    private final ConcurrentHashMap<Object, Object> blockDataCache;
     private final HashSet<Chunk> chunks;
 
     private Class<?> CRAFT_BLOCK_DATA;
@@ -47,10 +48,10 @@ public final class BlockChanger {
         MINOR_VERSION = extractMinorVersion();
         chunks = new HashSet<>();
         this.debug = debug;
-        this.worldCache = new HashMap<>();
-        this.chunkCache = new HashMap<>();
-        this.levelAccessorCache = new HashMap<>();
-        this.blockDataCache = new HashMap<>();
+        this.worldCache = new ConcurrentHashMap<>();
+        this.chunkCache = new ConcurrentHashMap<>();
+        this.levelAccessorCache = new ConcurrentHashMap<>();
+        this.blockDataCache = new ConcurrentHashMap<>();
 
         init();
     }
@@ -242,7 +243,7 @@ public final class BlockChanger {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
-        int y = (int) location.getY();
+        int y = location.getBlockY();
         int z = (int) location.getZ();
 
         Object nmsWorld = getNMSWorld(location.getWorld());
