@@ -7,6 +7,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.invoke.MethodHandle;
@@ -14,7 +15,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.*;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,7 +25,6 @@ public final class BlockChanger {
     private final ConcurrentHashMap<Object, Object> worldCache;
     private final ConcurrentHashMap<Object, Object> chunkCache;
     private final ConcurrentHashMap<Object, Object> blockDataCache;
-    private final HashSet<Chunk> chunks;
 
     // NMS Classes
     private Class<?> CRAFT_BLOCK_DATA;
@@ -48,7 +47,6 @@ public final class BlockChanger {
     public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
         MINOR_VERSION = extractMinorVersion();
-        chunks = new HashSet<>();
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
         this.chunkCache = new ConcurrentHashMap<>();
@@ -241,6 +239,8 @@ public final class BlockChanger {
 
     @SneakyThrows
     public void setBlock(Location location, BlockData blockData, Chunk chunk) {
+
+
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
@@ -274,7 +274,11 @@ public final class BlockChanger {
 
         if (result == null) return;
 
-        chunks.add(getChunkFromNMS(nmsChunk));
+        if (result == getBlockDataNMS(blockData)) return;
+
+        for (Player player : chunk.getWorld().getPlayers()) {
+            player.sendBlockChange(location, blockData);
+        }
     }
 
     public Snapshot capture(Location pos1, Location pos2) {
@@ -309,19 +313,8 @@ public final class BlockChanger {
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
                 setBlock(blockSnapshot.location, blockSnapshot.blockData, blockSnapshot.chunk);
             }
-            notifyChanges();
         });
     }
-
-    public void notifyChanges() {
-        for (Chunk chunk : new ArrayList<>(chunks)) {
-            if (chunk == null) return;
-            chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
-        }
-
-        chunks.clear();
-    }
-
 
     @SneakyThrows
     public Object getNMSWorld(World world) {
