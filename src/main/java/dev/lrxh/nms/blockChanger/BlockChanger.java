@@ -7,6 +7,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.invoke.MethodHandle;
@@ -242,9 +243,9 @@ public final class BlockChanger {
     public void setBlock(Location location, BlockData blockData, Chunk chunk) {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
-        int x = (int) location.getX();
+        int x = location.getBlockX();
         int y = location.getBlockY();
-        int z = (int) location.getZ();
+        int z = location.getBlockZ();
 
         Object nmsWorld = getNMSWorld(location.getWorld());
 
@@ -305,23 +306,30 @@ public final class BlockChanger {
 
     public void revert(Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            long startTime = System.currentTimeMillis();
+
+
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
                 setBlock(blockSnapshot.location, blockSnapshot.blockData, blockSnapshot.chunk);
             }
             notifyChanges();
+
+            long endTime = System.currentTimeMillis();
+            long duration = endTime - startTime;
+
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                player.sendMessage("Code executed in: " + duration + " ms");
+            }
         });
     }
 
     public void notifyChanges() {
         for (Chunk chunk : new ArrayList<>(chunks)) {
+            if (chunk == null) return;
             chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
         }
 
         chunks.clear();
-        worldCache.clear();
-        chunkCache.clear();
-        blockDataCache.clear();
-        levelAccessorCache.clear();
     }
 
 
