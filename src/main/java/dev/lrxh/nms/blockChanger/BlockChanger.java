@@ -23,8 +23,6 @@ public final class BlockChanger {
     private final boolean debug;
     private final ConcurrentHashMap<Object, Object> worldCache;
     private final ConcurrentHashMap<Object, Object> chunkCache;
-    private final ConcurrentHashMap<Object, Object> levelAccessorCache;
-    private final ConcurrentHashMap<Object, Object> blockDataCache;
     private final HashSet<Chunk> chunks;
 
     private Class<?> CRAFT_BLOCK_DATA;
@@ -51,8 +49,6 @@ public final class BlockChanger {
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
         this.chunkCache = new ConcurrentHashMap<>();
-        this.levelAccessorCache = new ConcurrentHashMap<>();
-        this.blockDataCache = new ConcurrentHashMap<>();
 
         init();
     }
@@ -243,9 +239,9 @@ public final class BlockChanger {
     public void setBlock(Location location, BlockData blockData, Chunk chunk) {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
-        int x = location.getBlockX();
+        int x = (int) location.getX();
         int y = location.getBlockY();
-        int z = location.getBlockZ();
+        int z = (int) location.getZ();
 
         Object nmsWorld = getNMSWorld(location.getWorld());
 
@@ -357,36 +353,12 @@ public final class BlockChanger {
 
     @SneakyThrows
     public Object getLevelHeightAccessor(Object nmsChunk) {
-        Object c = levelAccessorCache.get(nmsChunk);
-        if (c != null) return c;
-
-        Object result = LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
-
-        levelAccessorCache.put(nmsChunk, result);
-
-        return result;
-    }
-
-    @SneakyThrows
-    private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) {
-        MethodHandles.Lookup lookup = MethodHandles.lookup();
-        return lookup.findVirtual(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
-    }
-
-    @SneakyThrows
-    private Object[] getSections(Object nmsChunk) {
-        return (Object[]) GET_SECTIONS.invoke(nmsChunk);
+        return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
     }
 
     @SneakyThrows
     private Object getBlockDataNMS(BlockData blockData) {
-        Object c = blockDataCache.get(blockData.getMaterial().toString());
-        if (c != null) return c;
-
-        Object result = GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
-
-        blockDataCache.put(blockData.getMaterial().toString(), result);
-        return result;
+        return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
     }
 
     @SneakyThrows
@@ -399,6 +371,17 @@ public final class BlockChanger {
         chunkCache.put(chunk, nmsChunk);
 
         return nmsChunk;
+    }
+
+    @SneakyThrows
+    private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) {
+        MethodHandles.Lookup lookup = MethodHandles.lookup();
+        return lookup.findVirtual(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
+    }
+
+    @SneakyThrows
+    private Object[] getSections(Object nmsChunk) {
+        return (Object[]) GET_SECTIONS.invoke(nmsChunk);
     }
 
     @SneakyThrows
