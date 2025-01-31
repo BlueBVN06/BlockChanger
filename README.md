@@ -16,9 +16,6 @@ Location location = ...;
 BlockData blockData = Material.GOLD_BLOCK.createBlockData();
 
 blockChanger.setBlock(location, blockData);
-
-// Run this after placing all your block(s)
-blockChanger.notifyChanges();
 ``` 
 ### Snapshot System
 ```java
