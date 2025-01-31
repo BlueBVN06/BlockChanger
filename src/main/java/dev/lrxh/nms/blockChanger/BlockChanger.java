@@ -7,14 +7,15 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BlockChanger {
@@ -23,8 +24,10 @@ public final class BlockChanger {
     private final boolean debug;
     private final ConcurrentHashMap<Object, Object> worldCache;
     private final ConcurrentHashMap<Object, Object> chunkCache;
+    private final ConcurrentHashMap<Object, Object> blockDataCache;
     private final HashSet<Chunk> chunks;
 
+    // NMS Classes
     private Class<?> CRAFT_BLOCK_DATA;
     private Class<?> LEVEL_HEIGHT_ACCESSOR;
     private Class<?> CRAFT_WORLD;
@@ -49,6 +52,7 @@ public final class BlockChanger {
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
         this.chunkCache = new ConcurrentHashMap<>();
+        this.blockDataCache = new ConcurrentHashMap<>();
 
         init();
     }
@@ -302,20 +306,10 @@ public final class BlockChanger {
 
     public void revert(Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            long startTime = System.currentTimeMillis();
-
-
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
                 setBlock(blockSnapshot.location, blockSnapshot.blockData, blockSnapshot.chunk);
             }
             notifyChanges();
-
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                player.sendMessage("Code executed in: " + duration + " ms");
-            }
         });
     }
 
@@ -358,7 +352,11 @@ public final class BlockChanger {
 
     @SneakyThrows
     private Object getBlockDataNMS(BlockData blockData) {
-        return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
+        Object c = blockDataCache.get(blockData.getMaterial().toString());
+        if (c != null) return c;
+        Object result = GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
+        blockDataCache.put(blockData.getMaterial().toString(), result);
+        return result;
     }
 
     @SneakyThrows
