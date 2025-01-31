@@ -1,4 +1,4 @@
-package dev.lrxh.neptune.utils;
+package dev.lrxh.nms.blockChanger;
 
 import lombok.SneakyThrows;
 import org.bukkit.Bukkit;
