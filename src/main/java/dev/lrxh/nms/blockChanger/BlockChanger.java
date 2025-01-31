@@ -229,11 +229,11 @@ public final class BlockChanger {
     }
 
     public void setBlock(Location location, BlockData blockData) {
-        setBlock(location, blockData, location.getChunk());
+        setBlock(location, blockData, location.getChunk(), false);
     }
 
     @SneakyThrows
-    private void setBlock(Location location, BlockData blockData, Chunk chunk) {
+    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache) {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
@@ -242,7 +242,7 @@ public final class BlockChanger {
 
         Object nmsWorld = getNMSWorld(location.getWorld());
 
-        Object nmsChunk = getChunkNMS(nmsWorld, chunk);
+        Object nmsChunk = getChunkNMS(nmsWorld, chunk, cache);
 
         Object cs; // ORG.BUKKIT.CHUNKSECTION
         if (LEVEL_HEIGHT_ACCESSOR != null) {
@@ -304,9 +304,11 @@ public final class BlockChanger {
     public void revert(Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
-                setBlock(blockSnapshot.location, blockSnapshot.blockData, blockSnapshot.chunk);
+                setBlock(blockSnapshot.location, blockSnapshot.blockData, blockSnapshot.chunk, true);
             }
         });
+
+        chunkCache.clear();
     }
 
     @SneakyThrows
@@ -335,13 +337,16 @@ public final class BlockChanger {
     }
 
     @SneakyThrows
-    private Object getChunkNMS(Object world, Chunk chunk) {
-        Object c = chunkCache.get(chunk);
-        if (c != null) return c;
+    private Object getChunkNMS(Object world, Chunk chunk, boolean cache) {
+        if (cache) {
+            Object c = chunkCache.get(chunk);
+            if (c != null) return c;
+        }
+
 
         Object nmsChunk = GET_CHUNK_AT.invoke(world, chunk.getX(), chunk.getZ()); // NET.MC.CHUNK
 
-        chunkCache.put(chunk, nmsChunk);
+        if (cache) chunkCache.put(chunk, nmsChunk);
 
         return nmsChunk;
     }
