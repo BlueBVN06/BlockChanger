@@ -41,8 +41,6 @@ public final class BlockChanger {
     private MethodHandle GET_HANDLE_WORLD;
     // NMS Fields
     private Field NON_EMPTY_BLOCK_COUNT;
-    // NMS Constructors
-    private Constructor<?> CRAFT_CHUNK_CONSTRUCTOR;
 
     public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
@@ -189,10 +187,7 @@ public final class BlockChanger {
         debug("GET_CHUNK_AT Loaded");
 
         GET_HANDLE_WORLD = getMethodHandle(CRAFT_WORLD, "getHandle", WORLD_SERVER);
-        debug("GET_CHUNK_AT Loaded");
-
-        CRAFT_CHUNK_CONSTRUCTOR = CRAFT_CHUNK.getDeclaredConstructor(CHUNK);
-        debug("CRAFT_CHUNK_CONSTRUCTOR Loaded");
+        debug("GET_HANDLE_WORLD Loaded");
     }
 
 
@@ -239,8 +234,6 @@ public final class BlockChanger {
 
     @SneakyThrows
     public void setBlock(Location location, BlockData blockData, Chunk chunk) {
-
-
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
@@ -325,17 +318,6 @@ public final class BlockChanger {
         worldCache.put(world.getName(), worldServer);
 
         return worldServer;
-    }
-
-    @SneakyThrows
-    public Chunk getChunkFromNMS(Object nmsChunk) {
-        Object c = chunkCache.get(nmsChunk);
-        if (c != null) return (Chunk) c;
-        Object craftChunk = CRAFT_CHUNK_CONSTRUCTOR.newInstance(nmsChunk);
-
-        chunkCache.put(nmsChunk, craftChunk);
-
-        return (Chunk) craftChunk;
     }
 
     @SneakyThrows
