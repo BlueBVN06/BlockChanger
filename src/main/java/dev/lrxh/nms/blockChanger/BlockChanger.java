@@ -233,7 +233,7 @@ public final class BlockChanger {
     }
 
     @SneakyThrows
-    public void setBlock(Location location, BlockData blockData, Chunk chunk) {
+    private void setBlock(Location location, BlockData blockData, Chunk chunk) {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
@@ -310,7 +310,7 @@ public final class BlockChanger {
     }
 
     @SneakyThrows
-    public Object getNMSWorld(World world) {
+    private Object getNMSWorld(World world) {
         Object c = worldCache.get(world.getName());
         if (c != null) return c;
         Object craftWorld = CRAFT_WORLD.cast(world);
@@ -321,7 +321,7 @@ public final class BlockChanger {
     }
 
     @SneakyThrows
-    public Object getLevelHeightAccessor(Object nmsChunk) {
+    private Object getLevelHeightAccessor(Object nmsChunk) {
         return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
     }
 
@@ -398,7 +398,7 @@ public final class BlockChanger {
         private final BlockData blockData;
         private final Chunk chunk;
 
-        public BlockSnapshot(Location location, BlockData blockData, Chunk chunk) {
+        private BlockSnapshot(Location location, BlockData blockData, Chunk chunk) {
             this.location = location;
             this.blockData = blockData;
             this.chunk = chunk;
