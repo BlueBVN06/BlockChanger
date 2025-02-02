@@ -16,6 +16,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BlockChanger {
@@ -43,12 +44,100 @@ public final class BlockChanger {
 
     public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
-        MINOR_VERSION = extractMinorVersion();
+        MINOR_VERSION = getPatchVersion();
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
         this.chunkCache = new ConcurrentHashMap<>();
 
         init();
+    }
+
+    /**
+     * Sets block's block-data using NMS
+     *
+     * @param location  world where the block is located
+     * @param blockData Block data to be set
+     */
+    public void setBlock(Location location, BlockData blockData) {
+        setBlock(location, blockData, location.getChunk(), false);
+    }
+
+    /**
+     * Sets blocks block-data's using NMS
+     *
+     * @param blocks Map of locations and blockade to be set
+     */
+    public void setBlocks(Map<Location, BlockData> blocks) {
+        for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
+            setBlock(entry.getKey(), entry.getValue(), entry.getKey().getChunk(), true);
+        }
+
+        chunkCache.clear();
+    }
+
+    /**
+     * Capture all blocks between 2 positions
+     *
+     * @param pos1 Position 1
+     * @param pos2 Position 2
+     * @return Snapshot This is needed to revert captured snapshot
+     * */
+    public Snapshot capture(Location pos1, Location pos2) {
+        Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
+        Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
+
+        Snapshot snapshot = new Snapshot();
+        World world = max.getWorld();
+        int minX = Math.min(min.getBlockX(), max.getBlockX());
+        int minY = Math.min(min.getBlockY(), max.getBlockY());
+        int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
+
+        int maxX = Math.max(min.getBlockX(), max.getBlockX());
+        int maxY = Math.max(min.getBlockY(), max.getBlockY());
+        int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Block block = min.getWorld().getBlockAt(x, y, z);
+                    Location location = new Location(world, x, y, z);
+                    snapshot.add(new BlockSnapshot(location, block.getBlockData(), getBlockDataNMS(block.getBlockData()), location.getChunk()));
+                }
+            }
+        }
+
+        return snapshot;
+    }
+
+    /**
+     * Revert all changes from the snapshot
+     *
+     * @param snapshot Snapshot you have captured
+     * */
+    public void revert(Snapshot snapshot) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
+                setBlock(blockSnapshot);
+            }
+        });
+
+        chunkCache.clear();
+    }
+
+    private boolean isPlayerSeeingChunk(Player player, Chunk chunk) {
+        if (!chunk.isLoaded()) return false;
+
+        int viewDistance = player.getWorld().getViewDistance();
+        int playerX = player.getLocation().getBlockX();
+        int playerZ = player.getLocation().getBlockZ();
+
+        int chunkX = chunk.getX() * 16;
+        int chunkZ = chunk.getZ() * 16;
+
+        int distanceX = Math.abs(playerX - chunkX);
+        int distanceZ = Math.abs(playerZ - chunkZ);
+
+        return distanceX <= viewDistance * 16 && distanceZ <= viewDistance * 16;
     }
 
     @SneakyThrows
@@ -184,59 +273,17 @@ public final class BlockChanger {
         debug("GET_HANDLE_WORLD Loaded");
     }
 
-
-    private void printAllMethods(Class<?> clazz) {
-        Method[] methods = clazz.getDeclaredMethods();
-
-        for (Method method : methods) {
-            System.out.print("Method: " + method.getName());
-            System.out.print(" | Return type: " + method.getReturnType().getSimpleName());
-            System.out.print(" | Modifiers: " + Modifier.toString(method.getModifiers()));
-            System.out.print(" | Parameters: ");
-            Parameter[] parameters = method.getParameters();
-            if (parameters.length == 0) {
-                System.out.print("None");
-            } else {
-                for (Parameter param : parameters) {
-                    System.out.print(param.getType().getSimpleName() + " " + param.getName() + ", ");
-                }
-                System.out.print("\b\b");
-            }
-
-            System.out.println();
-        }
-    }
-
-    private void printAllFields(Class<?> clazz) {
-        Field[] fields = clazz.getDeclaredFields();
-
-        for (Field field : fields) {
-            System.out.print("Field: " + field.getName());
-            System.out.print(" | Type: " + field.getType().getSimpleName());
-            System.out.print(" | Modifiers: " + Modifier.toString(field.getModifiers()));
-            System.out.println();
-        }
-    }
-
-    private void debug(String message) {
-        if (debug) plugin.getLogger().info(message);
-    }
-
-    public void setBlock(Location location, BlockData blockData) {
-        setBlock(location, blockData, location.getChunk());
-    }
-
     @SneakyThrows
-    private void setBlock(Location location, BlockData blockData, Chunk chunk) {
+    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache) {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
         int y = location.getBlockY();
         int z = (int) location.getZ();
 
-        Object nmsWorld = getNMSWorld(location.getWorld());
+        Object nmsWorld = getWorldNMS(location.getWorld());
 
-        Object nmsChunk = getChunkNMS(nmsWorld, chunk, false);
+        Object nmsChunk = getChunkNMS(nmsWorld, chunk, cache);
 
         Object cs;
         if (LEVEL_HEIGHT_ACCESSOR != null) {
@@ -279,7 +326,7 @@ public final class BlockChanger {
         int y = location.getBlockY();
         int z = (int) location.getZ();
 
-        Object nmsWorld = getNMSWorld(location.getWorld());
+        Object nmsWorld = getWorldNMS(location.getWorld());
 
         Object nmsChunk = getChunkNMS(nmsWorld, chunk, true);
 
@@ -313,45 +360,8 @@ public final class BlockChanger {
         }
     }
 
-    public Snapshot capture(Location pos1, Location pos2) {
-        Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
-        Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
-
-        Snapshot snapshot = new Snapshot();
-        World world = max.getWorld();
-        int minX = Math.min(min.getBlockX(), max.getBlockX());
-        int minY = Math.min(min.getBlockY(), max.getBlockY());
-        int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
-
-        int maxX = Math.max(min.getBlockX(), max.getBlockX());
-        int maxY = Math.max(min.getBlockY(), max.getBlockY());
-        int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    Block block = min.getWorld().getBlockAt(x, y, z);
-                    Location location = new Location(world, x, y, z);
-                    snapshot.add(new BlockSnapshot(location, block.getBlockData(), getBlockDataNMS(block.getBlockData()), location.getChunk()));
-                }
-            }
-        }
-
-        return snapshot;
-    }
-
-    public void revert(Snapshot snapshot) {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
-                setBlock(blockSnapshot);
-            }
-        });
-
-        chunkCache.clear();
-    }
-
     @SneakyThrows
-    private Object getNMSWorld(World world) {
+    private Object getWorldNMS(World world) {
         Object c = worldCache.get(world.getName());
         if (c != null) return c;
         Object craftWorld = CRAFT_WORLD.cast(world);
@@ -359,32 +369,6 @@ public final class BlockChanger {
         worldCache.put(world.getName(), worldServer);
 
         return worldServer;
-    }
-
-    @SneakyThrows
-    private Object getLevelHeightAccessor(Object nmsChunk) {
-        return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
-    }
-
-    @SneakyThrows
-    private Object getBlockDataNMS(BlockData blockData) {
-        return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
-    }
-
-    public boolean isPlayerSeeingChunk(Player player, Chunk chunk) {
-        if (!chunk.isLoaded()) return false;
-
-        int viewDistance = player.getWorld().getViewDistance();
-        int playerX = player.getLocation().getBlockX();
-        int playerZ = player.getLocation().getBlockZ();
-
-        int chunkX = chunk.getX() * 16;
-        int chunkZ = chunk.getZ() * 16;
-
-        int distanceX = Math.abs(playerX - chunkX);
-        int distanceZ = Math.abs(playerZ - chunkZ);
-
-        return distanceX <= viewDistance * 16 && distanceZ <= viewDistance * 16;
     }
 
     @SneakyThrows
@@ -399,6 +383,16 @@ public final class BlockChanger {
         if (cache) chunkCache.put(chunk, nmsChunk);
 
         return nmsChunk;
+    }
+
+    @SneakyThrows
+    private Object getLevelHeightAccessor(Object nmsChunk) {
+        return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
+    }
+
+    @SneakyThrows
+    private Object getBlockDataNMS(BlockData blockData) {
+        return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
     }
 
     @SneakyThrows
@@ -428,12 +422,49 @@ public final class BlockChanger {
         return MINOR_VERSION >= version;
     }
 
-    private int extractMinorVersion() {
+    private int getPatchVersion() {
         String[] versionParts = plugin.getServer().getBukkitVersion().split("-")[0].split("\\.");
         if (versionParts.length >= 2) {
             return Integer.parseInt(versionParts[1]);
         }
         return 0;
+    }
+
+    private void printAllMethods(Class<?> clazz) {
+        Method[] methods = clazz.getDeclaredMethods();
+
+        for (Method method : methods) {
+            System.out.print("Method: " + method.getName());
+            System.out.print(" | Return type: " + method.getReturnType().getSimpleName());
+            System.out.print(" | Modifiers: " + Modifier.toString(method.getModifiers()));
+            System.out.print(" | Parameters: ");
+            Parameter[] parameters = method.getParameters();
+            if (parameters.length == 0) {
+                System.out.print("None");
+            } else {
+                for (Parameter param : parameters) {
+                    System.out.print(param.getType().getSimpleName() + " " + param.getName() + ", ");
+                }
+                System.out.print("\b\b");
+            }
+
+            System.out.println();
+        }
+    }
+
+    private void printAllFields(Class<?> clazz) {
+        Field[] fields = clazz.getDeclaredFields();
+
+        for (Field field : fields) {
+            System.out.print("Field: " + field.getName());
+            System.out.print(" | Type: " + field.getType().getSimpleName());
+            System.out.print(" | Modifiers: " + Modifier.toString(field.getModifiers()));
+            System.out.println();
+        }
+    }
+
+    private void debug(String message) {
+        if (debug) plugin.getLogger().info(message);
     }
 
     public static class Snapshot {
