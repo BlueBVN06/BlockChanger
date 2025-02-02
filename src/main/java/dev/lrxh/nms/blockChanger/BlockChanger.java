@@ -19,6 +19,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * @version 1.5
+ * @author lrxxh
+ * @apiNote 1.16.5 - 1.21.4 easy to use util to be able to
+ *          set blocks blazingly fast
+ */
 public final class BlockChanger {
     private final int MINOR_VERSION;
     private final JavaPlugin plugin;
@@ -102,7 +108,7 @@ public final class BlockChanger {
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
-                    Block block = min.getWorld().getBlockAt(x, y, z);
+                    Block block = world.getBlockAt(x, y, z);
                     Location location = new Location(world, x, y, z);
                     snapshot.add(new BlockSnapshot(location, block.getBlockData(), getBlockDataNMS(block.getBlockData()), location.getChunk()));
                 }
