@@ -14,6 +14,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +24,6 @@ public final class BlockChanger {
     private final JavaPlugin plugin;
     private final boolean debug;
     private final ConcurrentHashMap<Object, Object> worldCache;
-    private final ConcurrentHashMap<Object, Object> chunkCache;
 
     // NMS Classes
     private Class<?> CRAFT_BLOCK_DATA;
@@ -46,7 +46,6 @@ public final class BlockChanger {
         MINOR_VERSION = getMinorVersion();
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
-        this.chunkCache = new ConcurrentHashMap<>();
 
         init();
     }
@@ -60,7 +59,7 @@ public final class BlockChanger {
      * @param blockData Block data to be set
      */
     public void setBlock(Location location, BlockData blockData) {
-        setBlock(location, blockData, location.getChunk(), false);
+        setBlock(location, blockData, location.getChunk(), false, null);
     }
 
     /**
@@ -70,8 +69,10 @@ public final class BlockChanger {
      * @param blocks Map of locations and blockade to be set
      */
     public void setBlocks(Map<Location, BlockData> blocks) {
+        HashMap<Object, Object> chunkCache = new HashMap<>();
+
         for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
-            setBlock(entry.getKey(), entry.getValue(), entry.getKey().getChunk(), true);
+            setBlock(entry.getKey(), entry.getValue(), entry.getKey().getChunk(), true, chunkCache);
         }
 
         chunkCache.clear();
@@ -118,12 +119,14 @@ public final class BlockChanger {
      * */
     public void revert(Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
-                setBlock(blockSnapshot);
-            }
-        });
+            HashMap<Object, Object> chunkCache = new HashMap<>();
 
-        chunkCache.clear();
+            for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
+                setBlock(blockSnapshot, chunkCache);
+            }
+
+            chunkCache.clear();
+        });
     }
 
     private boolean isPlayerSeeingChunk(Player player, Chunk chunk) {
@@ -140,6 +143,151 @@ public final class BlockChanger {
         int distanceZ = Math.abs(playerZ - chunkZ);
 
         return distanceX <= viewDistance * 16 && distanceZ <= viewDistance * 16;
+    }
+
+
+    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache, HashMap<Object, Object> chunkCache) {
+        if (chunk == null) return;
+        try {
+            Object nmsBlockData = getBlockDataNMS(blockData);
+            int x = (int) location.getX();
+            int y = location.getBlockY();
+            int z = (int) location.getZ();
+
+            Object nmsWorld = getWorldNMS(location.getWorld());
+
+            Object nmsChunk = getChunkNMS(nmsWorld, chunk, cache, chunkCache);
+
+            Object cs;
+            if (LEVEL_HEIGHT_ACCESSOR != null) {
+                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
+
+                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
+
+                cs = getSections(nmsChunk)[i];
+            } else {
+                cs = getSections(nmsChunk)[y >> 4];
+            }
+
+            if (cs == null) return;
+
+            if (HAS_ONLY_AIR != null) {
+                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
+            } else {
+                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
+            }
+
+            Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
+
+            if (result == null) return;
+
+            if (result == getBlockDataNMS(blockData)) return;
+
+            for (Player player : chunk.getWorld().getPlayers()) {
+                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
+            }
+        } catch (Throwable e) {
+            debug("Error occurred while at #setBlock(Location, BlockData, Chunk, boolean)");
+        }
+    }
+
+    private void setBlock(BlockSnapshot snapshot, HashMap<Object, Object> chunkCache) {
+        Chunk chunk = snapshot.chunk;
+        if (chunk == null) return;
+        try {
+            Object nmsBlockData = snapshot.blockDataNMS;
+            BlockData blockData = snapshot.blockData;
+            Location location = snapshot.location;
+            int x = (int) location.getX();
+            int y = location.getBlockY();
+            int z = (int) location.getZ();
+
+            Object nmsWorld = getWorldNMS(location.getWorld());
+
+            Object nmsChunk = getChunkNMS(nmsWorld, chunk, true, chunkCache);
+
+            Object cs;
+            if (LEVEL_HEIGHT_ACCESSOR != null) {
+                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
+
+                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
+
+                cs = getSections(nmsChunk)[i];
+            } else {
+                cs = getSections(nmsChunk)[y >> 4];
+            }
+
+            if (cs == null) return;
+
+            if (HAS_ONLY_AIR != null) {
+                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
+            } else {
+                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
+            }
+
+            Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
+
+            if (result == null) return;
+
+            if (result == getBlockDataNMS(blockData)) return;
+
+            for (Player player : chunk.getWorld().getPlayers()) {
+                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
+            }
+        } catch (Throwable e) {
+            debug("Error occurred while at #setBlock(BlockSnapshot)");
+        }
+    }
+
+    private Object getWorldNMS(World world) {
+        Object c = worldCache.get(world.getName());
+        if (c != null) return c;
+        try {
+            Object craftWorld = CRAFT_WORLD.cast(world);
+            Object worldServer = WORLD_SERVER.cast(GET_HANDLE_WORLD.invoke(craftWorld));
+            worldCache.put(world.getName(), worldServer);
+
+            return worldServer;
+        } catch (Throwable e) {
+            debug("Error occurred while at #getWorldNMS(World)");
+        }
+        return null;
+    }
+
+    private Object getChunkNMS(Object world, Chunk chunk, boolean cache, HashMap<Object, Object> chunkCache) {
+        if (cache) {
+            Object c = chunkCache.get(chunk);
+            if (c != null) return c;
+        }
+
+        try {
+            Object nmsChunk = GET_CHUNK_AT.invoke(world, chunk.getX(), chunk.getZ());
+
+            if (cache) chunkCache.put(chunk, nmsChunk);
+
+            return nmsChunk;
+        } catch (Throwable e) {
+            debug("Error occurred while at #getChunkNMS(Object, Chunk, boolean)");
+        }
+        return null;
+    }
+
+    private Object getLevelHeightAccessor(Object nmsChunk) {
+        try {
+            return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
+        } catch (Throwable e) {
+            debug("Error occurred while at #getLevelHeightAccessor(Object)");
+        }
+        return null;
+    }
+
+    private Object getBlockDataNMS(BlockData blockData) {
+        try {
+            return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
+        } catch (Throwable e) {
+            debug("Error occurred while at #getBlockDataNMS(BlockData)");
+        }
+        return null;
     }
 
     private void init() {
@@ -306,150 +454,6 @@ public final class BlockChanger {
         } catch (Throwable e) {
             debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
         }
-    }
-
-    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache) {
-        if (chunk == null) return;
-        try {
-            Object nmsBlockData = getBlockDataNMS(blockData);
-            int x = (int) location.getX();
-            int y = location.getBlockY();
-            int z = (int) location.getZ();
-
-            Object nmsWorld = getWorldNMS(location.getWorld());
-
-            Object nmsChunk = getChunkNMS(nmsWorld, chunk, cache);
-
-            Object cs;
-            if (LEVEL_HEIGHT_ACCESSOR != null) {
-                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
-
-                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
-
-                cs = getSections(nmsChunk)[i];
-            } else {
-                cs = getSections(nmsChunk)[y >> 4];
-            }
-
-            if (cs == null) return;
-
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
-            }
-
-            Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
-
-            if (result == null) return;
-
-            if (result == getBlockDataNMS(blockData)) return;
-
-            for (Player player : chunk.getWorld().getPlayers()) {
-                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
-            }
-        } catch (Throwable e) {
-            debug("Error occurred while at #setBlock(Location, BlockData, Chunk, boolean)");
-        }
-    }
-
-    private void setBlock(BlockSnapshot snapshot) {
-        Chunk chunk = snapshot.chunk;
-        if (chunk == null) return;
-        try {
-            Object nmsBlockData = snapshot.blockDataNMS;
-            BlockData blockData = snapshot.blockData;
-            Location location = snapshot.location;
-            int x = (int) location.getX();
-            int y = location.getBlockY();
-            int z = (int) location.getZ();
-
-            Object nmsWorld = getWorldNMS(location.getWorld());
-
-            Object nmsChunk = getChunkNMS(nmsWorld, chunk, true);
-
-            Object cs;
-            if (LEVEL_HEIGHT_ACCESSOR != null) {
-                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
-
-                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
-
-                cs = getSections(nmsChunk)[i];
-            } else {
-                cs = getSections(nmsChunk)[y >> 4];
-            }
-
-            if (cs == null) return;
-
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
-            }
-
-            Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
-
-            if (result == null) return;
-
-            if (result == getBlockDataNMS(blockData)) return;
-
-            for (Player player : chunk.getWorld().getPlayers()) {
-                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
-            }
-        } catch (Throwable e) {
-            debug("Error occurred while at #setBlock(BlockSnapshot)");
-        }
-    }
-
-    private Object getWorldNMS(World world) {
-        Object c = worldCache.get(world.getName());
-        if (c != null) return c;
-        try {
-            Object craftWorld = CRAFT_WORLD.cast(world);
-            Object worldServer = WORLD_SERVER.cast(GET_HANDLE_WORLD.invoke(craftWorld));
-            worldCache.put(world.getName(), worldServer);
-
-            return worldServer;
-        } catch (Throwable e) {
-            debug("Error occurred while at #getWorldNMS(World)");
-        }
-        return null;
-    }
-
-    private Object getChunkNMS(Object world, Chunk chunk, boolean cache) {
-        if (cache) {
-            Object c = chunkCache.get(chunk);
-            if (c != null) return c;
-        }
-
-        try {
-            Object nmsChunk = GET_CHUNK_AT.invoke(world, chunk.getX(), chunk.getZ());
-
-            if (cache) chunkCache.put(chunk, nmsChunk);
-
-            return nmsChunk;
-        } catch (Throwable e) {
-            debug("Error occurred while at #getChunkNMS(Object, Chunk, boolean)");
-        }
-        return null;
-    }
-
-    private Object getLevelHeightAccessor(Object nmsChunk) {
-        try {
-            return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
-        } catch (Throwable e) {
-            debug("Error occurred while at #getLevelHeightAccessor(Object)");
-        }
-        return null;
-    }
-
-    private Object getBlockDataNMS(BlockData blockData) {
-        try {
-            return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
-        } catch (Throwable e) {
-            debug("Error occurred while at #getBlockDataNMS(BlockData)");
-        }
-        return null;
     }
 
     private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
