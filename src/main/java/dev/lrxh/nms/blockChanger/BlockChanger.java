@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @version 1.5
- * @author lrxxh
+ * @author Devlrxxh
  * @apiNote 1.16.5 - 1.21.4 easy to use util to be able to
  *          set blocks blazingly fast
  */
