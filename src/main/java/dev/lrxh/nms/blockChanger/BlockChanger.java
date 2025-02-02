@@ -53,7 +53,9 @@ public final class BlockChanger {
     }
 
     /**
-     * Sets block's block-data using NMS
+     * Sets block's block-data using NMS.
+     * This shouldn't be used for multi block changes
+     * instead use setBlocks.
      *
      * @param location  world where the block is located
      * @param blockData Block data to be set
@@ -110,7 +112,7 @@ public final class BlockChanger {
     }
 
     /**
-     * Revert all changes from the snapshot
+     * Revert all changes from the snapshot, this runs async
      *
      * @param snapshot Snapshot you have captured
      * */
