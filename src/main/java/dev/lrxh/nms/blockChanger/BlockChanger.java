@@ -24,7 +24,6 @@ public final class BlockChanger {
     private final boolean debug;
     private final ConcurrentHashMap<Object, Object> worldCache;
     private final ConcurrentHashMap<Object, Object> chunkCache;
-    private final ConcurrentHashMap<Object, Object> blockDataCache;
 
     // NMS Classes
     private Class<?> CRAFT_BLOCK_DATA;
@@ -48,7 +47,6 @@ public final class BlockChanger {
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
         this.chunkCache = new ConcurrentHashMap<>();
-        this.blockDataCache = new ConcurrentHashMap<>();
 
         init();
     }
@@ -225,11 +223,11 @@ public final class BlockChanger {
     }
 
     public void setBlock(Location location, BlockData blockData) {
-        setBlock(location, blockData, location.getChunk(), false);
+        setBlock(location, blockData, location.getChunk());
     }
 
     @SneakyThrows
-    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache) {
+    private void setBlock(Location location, BlockData blockData, Chunk chunk) {
         if (chunk == null) return;
         Object nmsBlockData = getBlockDataNMS(blockData);
         int x = (int) location.getX();
@@ -238,7 +236,52 @@ public final class BlockChanger {
 
         Object nmsWorld = getNMSWorld(location.getWorld());
 
-        Object nmsChunk = getChunkNMS(nmsWorld, chunk, cache);
+        Object nmsChunk = getChunkNMS(nmsWorld, chunk, false);
+
+        Object cs;
+        if (LEVEL_HEIGHT_ACCESSOR != null) {
+            Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
+
+            int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
+
+            cs = getSections(nmsChunk)[i];
+        } else {
+            cs = getSections(nmsChunk)[y >> 4];
+        }
+
+        if (cs == null) return;
+
+        if (HAS_ONLY_AIR != null) {
+            if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
+        } else {
+            if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
+        }
+
+        Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
+
+        if (result == null) return;
+
+        if (result == getBlockDataNMS(blockData)) return;
+
+        for (Player player : chunk.getWorld().getPlayers()) {
+            if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
+        }
+    }
+
+    @SneakyThrows
+    private void setBlock(BlockSnapshot snapshot) {
+        Chunk chunk = snapshot.chunk;
+        if (chunk == null) return;
+        Object nmsBlockData = snapshot.blockDataNMS;
+        BlockData blockData = snapshot.blockData;
+        Location location = snapshot.location;
+        int x = (int) location.getX();
+        int y = location.getBlockY();
+        int z = (int) location.getZ();
+
+        Object nmsWorld = getNMSWorld(location.getWorld());
+
+        Object nmsChunk = getChunkNMS(nmsWorld, chunk, true);
 
         Object cs;
         if (LEVEL_HEIGHT_ACCESSOR != null) {
@@ -289,7 +332,7 @@ public final class BlockChanger {
                 for (int z = minZ; z <= maxZ; z++) {
                     Block block = min.getWorld().getBlockAt(x, y, z);
                     Location location = new Location(world, x, y, z);
-                    snapshot.add(new BlockSnapshot(location, block.getBlockData(), location.getChunk()));
+                    snapshot.add(new BlockSnapshot(location, block.getBlockData(), getBlockDataNMS(block.getBlockData()), location.getChunk()));
                 }
             }
         }
@@ -300,7 +343,7 @@ public final class BlockChanger {
     public void revert(Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
-                setBlock(blockSnapshot.location, blockSnapshot.blockData, blockSnapshot.chunk, true);
+                setBlock(blockSnapshot);
             }
         });
 
@@ -325,11 +368,7 @@ public final class BlockChanger {
 
     @SneakyThrows
     private Object getBlockDataNMS(BlockData blockData) {
-        Object c = blockDataCache.get(blockData.getMaterial().toString());
-        if (c != null) return c;
-        Object result = GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
-        blockDataCache.put(blockData.getMaterial().toString(), result);
-        return result;
+        return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
     }
 
     public boolean isPlayerSeeingChunk(Player player, Chunk chunk) {
@@ -412,11 +451,13 @@ public final class BlockChanger {
     protected static class BlockSnapshot {
         private final Location location;
         private final BlockData blockData;
+        private final Object blockDataNMS;
         private final Chunk chunk;
 
-        private BlockSnapshot(Location location, BlockData blockData, Chunk chunk) {
+        private BlockSnapshot(Location location, BlockData blockData, Object blockDataNMS, Chunk chunk) {
             this.location = location;
             this.blockData = blockData;
+            this.blockDataNMS = blockDataNMS;
             this.chunk = chunk;
         }
     }
