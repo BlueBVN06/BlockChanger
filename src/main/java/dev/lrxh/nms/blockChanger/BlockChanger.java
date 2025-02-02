@@ -44,7 +44,7 @@ public final class BlockChanger {
 
     public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
-        MINOR_VERSION = getPatchVersion();
+        MINOR_VERSION = getMinorVersion();
         this.debug = debug;
         this.worldCache = new ConcurrentHashMap<>();
         this.chunkCache = new ConcurrentHashMap<>();
@@ -425,7 +425,7 @@ public final class BlockChanger {
         return MINOR_VERSION >= version;
     }
 
-    private int getPatchVersion() {
+    private int getMinorVersion() {
         String[] versionParts = plugin.getServer().getBukkitVersion().split("-")[0].split("\\.");
         if (versionParts.length >= 2) {
             return Integer.parseInt(versionParts[1]);
