@@ -16,6 +16,8 @@ Location location = ...;
 BlockData blockData = Material.GOLD_BLOCK.createBlockData();
 
 blockChanger.setBlock(location, blockData);
+
+blockChanger. // see all available methods
 ``` 
 ### Snapshot System
 ```java
