@@ -65,7 +65,8 @@ public final class BlockChanger {
     }
 
     /**
-     * Sets blocks block-data's using NMS
+     * Sets blocks block-data's using NMS.
+     * This is suggested to be run async.
      *
      * @param blocks Map of locations and blockade to be set
      */
