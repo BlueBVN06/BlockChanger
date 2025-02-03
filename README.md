@@ -17,15 +17,16 @@ BlockData blockData = Material.GOLD_BLOCK.createBlockData();
 
 blockChanger.setBlock(location, blockData);
 
+BlockData blockData = blockChanger.getBlockDataAt(location);
+
 blockChanger. // see all available methods
 ``` 
 ### Snapshot System
 ```java
-Location min = ...;
-Location max = ...;
-BlockChanger.Snapshot snapshot;
+Location pos1 = ...;
+Location pos2 = ...;
 
-snapshot = blockChanger.capture(min, max);
+BlockChanger.Snapshot snapshot = blockChanger.capture(pos1, pos2);
 
 blockChanger.revert(snapshot);
 ``` 
