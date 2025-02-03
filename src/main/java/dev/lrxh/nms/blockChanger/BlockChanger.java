@@ -20,10 +20,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author lrxxh
  * @version 1.5
+ * @author lrxxh
  * @apiNote 1.16.5 - 1.21.4 easy to use util to be able to
- * set blocks blazingly fast
+ *          set blocks blazingly fast
  */
 public final class BlockChanger {
     private final int MINOR_VERSION;
@@ -39,13 +39,11 @@ public final class BlockChanger {
     // NMS MethodHandles
     private MethodHandle GET_STATE;
     private MethodHandle GET_SECTIONS;
+    private MethodHandle SET_BLOCK_STATE;
     private MethodHandle GET_SECTION_INDEX;
     private MethodHandle HAS_ONLY_AIR;
     private MethodHandle GET_CHUNK_AT;
     private MethodHandle GET_HANDLE_WORLD;
-
-    private MethodHandle GET_STATES;
-    private MethodHandle GET_AND_SET;
     // NMS Fields
     private Field NON_EMPTY_BLOCK_COUNT;
 
@@ -82,6 +80,8 @@ public final class BlockChanger {
         for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
             setBlock(entry.getKey(), entry.getValue(), entry.getKey().getChunk(), true, chunkCache);
         }
+
+        chunkCache.clear();
     }
 
     /**
@@ -126,9 +126,12 @@ public final class BlockChanger {
     public void revert(Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             HashMap<Object, Object> chunkCache = new HashMap<>();
+
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
                 setBlock(blockSnapshot, chunkCache);
             }
+
+            chunkCache.clear();
         });
     }
 
@@ -148,19 +151,67 @@ public final class BlockChanger {
         return distanceX <= viewDistance * 16 && distanceZ <= viewDistance * 16;
     }
 
+
     private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache, HashMap<Object, Object> chunkCache) {
         if (chunk == null) return;
         try {
             Object nmsBlockData = getBlockDataNMS(blockData);
+            int x = (int) location.getX();
+            int y = location.getBlockY();
+            int z = (int) location.getZ();
+
+            Object nmsWorld = getWorldNMS(location.getWorld());
+
+            Object nmsChunk = getChunkNMS(nmsWorld, chunk, cache, chunkCache);
+
+            Object cs;
+            if (LEVEL_HEIGHT_ACCESSOR != null) {
+                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
+
+                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
+
+                cs = getSections(nmsChunk)[i];
+            } else {
+                cs = getSections(nmsChunk)[y >> 4];
+            }
+
+            if (cs == null) return;
+
+            if (HAS_ONLY_AIR != null) {
+                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
+            } else {
+                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
+            }
+
+            Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
+
+            if (result == null) return;
+
+            if (result == getBlockDataNMS(blockData)) return;
+
+            for (Player player : chunk.getWorld().getPlayers()) {
+                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
+            }
+        } catch (Throwable e) {
+            debug("Error occurred while at #setBlock(Location, BlockData, Chunk, boolean)");
+        }
+    }
+
+    private void setBlock(BlockSnapshot snapshot, HashMap<Object, Object> chunkCache) {
+        Chunk chunk = snapshot.chunk;
+        if (chunk == null) return;
+        try {
+            Object nmsBlockData = snapshot.blockDataNMS;
+            BlockData blockData = snapshot.blockData;
+            Location location = snapshot.location;
+            int x = (int) location.getX();
+            int y = location.getBlockY();
+            int z = (int) location.getZ();
 
             Object nmsWorld = getWorldNMS(location.getWorld());
 
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, true, chunkCache);
 
-            int x = (int) location.getX();
-            int y = location.getBlockY();
-            int z = (int) location.getZ();
-
             Object cs;
             if (LEVEL_HEIGHT_ACCESSOR != null) {
                 Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
@@ -172,51 +223,7 @@ public final class BlockChanger {
                 cs = getSections(nmsChunk)[y >> 4];
             }
 
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
-            }
-
-            Object result = GET_AND_SET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
-
-            if (result == nmsBlockData) return;
-
-            for (Player player : chunk.getWorld().getPlayers()) {
-                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
-            }
-
-        } catch (Throwable e) {
-            debug("Error occurred while at #setBlockNew(Location, BlockData) " + e.getMessage());
-
-        }
-    }
-
-    public void setBlock(BlockSnapshot snapshot, HashMap<Object, Object> chunkCache) {
-        try {
-            Object nmsBlockData = snapshot.blockDataNMS;
-            BlockData blockData = snapshot.blockData;
-            Location location = snapshot.location;
-
-            Chunk chunk = snapshot.chunk;
-            Object nmsWorld = getWorldNMS(snapshot.location.getWorld());
-
-            Object nmsChunk = getChunkNMS(nmsWorld, chunk, true, chunkCache);
-
-            int x = (int) location.getX();
-            int y = location.getBlockY();
-            int z = (int) location.getZ();
-
-            Object cs;
-            if (LEVEL_HEIGHT_ACCESSOR != null) {
-                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
-
-                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
-
-                cs = getSections(nmsChunk)[i];
-            } else {
-                cs = getSections(nmsChunk)[y >> 4];
-            }
+            if (cs == null) return;
 
             if (HAS_ONLY_AIR != null) {
                 if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
@@ -224,17 +231,17 @@ public final class BlockChanger {
                 if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
             }
 
-            Object result = GET_AND_SET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
+            Object result = SET_BLOCK_STATE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
 
-            if (result == nmsBlockData) return;
+            if (result == null) return;
+
+            if (result == getBlockDataNMS(blockData)) return;
 
             for (Player player : chunk.getWorld().getPlayers()) {
                 if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
             }
-
         } catch (Throwable e) {
-            debug("Error occurred while at #setBlockNew(Location, BlockData) " + e.getMessage());
-
+            debug("Error occurred while at #setBlock(BlockSnapshot)");
         }
     }
 
@@ -266,7 +273,7 @@ public final class BlockChanger {
 
             return nmsChunk;
         } catch (Throwable e) {
-            debug("Error occurred while at #getChunkNMS(Object, Chunk, boolean) " + e.getMessage());
+            debug("Error occurred while at #getChunkNMS(Object, Chunk, boolean)");
         }
         return null;
     }
@@ -315,14 +322,6 @@ public final class BlockChanger {
             i_BLOCK_DATA = loadClass(NET_MINECRAFT + "IBlockData");
         }
         debug("I_BLOCK_DATA Loaded");
-
-        Class<?> DATA_PALETTE_BLOCK;
-        if (MINOR_VERSION != 16) {
-            DATA_PALETTE_BLOCK = loadClass(NET_MINECRAFT + "world.level.chunk.DataPaletteBlock");
-        } else {
-            DATA_PALETTE_BLOCK = loadClass(NET_MINECRAFT + "DataPaletteBlock");
-        }
-        debug("DATA_PALETTE_BLOCK Loaded");
 
         Class<?> CHUNK;
         if (MINOR_VERSION != 16) {
@@ -398,22 +397,19 @@ public final class BlockChanger {
         }
 
         try {
-            if (supports(20)) {
-                GET_STATES = getMethodHandle(CHUNK_SECTION, "h", DATA_PALETTE_BLOCK);
+            if (MINOR_VERSION != 16) {
+                if (supports(21)) {
+                    SET_BLOCK_STATE = getMethodHandle(CHUNK_SECTION, "setBlockState", i_BLOCK_DATA, int.class, int.class, int.class, i_BLOCK_DATA);
+                } else {
+                    SET_BLOCK_STATE = getMethodHandle(CHUNK_SECTION, "a", i_BLOCK_DATA, int.class, int.class, int.class, i_BLOCK_DATA);
+                }
             } else {
-                GET_STATES = getMethodHandle(CHUNK_SECTION, "i", DATA_PALETTE_BLOCK);
-
+                SET_BLOCK_STATE = getMethodHandle(CHUNK_SECTION, "setType", i_BLOCK_DATA, int.class, int.class, int.class, i_BLOCK_DATA);
             }
-            debug("GET_STATES Loaded");
+            debug("SET_BLOCK_STATE Loaded");
         } catch (Throwable e) {
-            debug("GET_STATES didn't load " + e.getCause().getMessage());
-        }
+            debug("GET_SECTIONS didn't load " + e.getCause().getMessage());
 
-        try {
-            GET_AND_SET = getMethodHandle(DATA_PALETTE_BLOCK, "a", Object.class, int.class, int.class, int.class, Object.class);
-            debug("SET Loaded");
-        } catch (Throwable e) {
-            debug("SET didn't load " + e.getCause().getMessage());
         }
 
         try {
@@ -498,36 +494,6 @@ public final class BlockChanger {
             debug("Error occurred while at #getDeclaredField(Class<?>, String)");
         }
         return null;
-    }
-
-    private void printAllMethods(Class<?> clazz) {
-        Method[] methods = clazz.getDeclaredMethods();
-        for (Method method : methods) {
-            System.out.print("Method: " + method.getName());
-            System.out.print(" | Return type: " + method.getReturnType().getSimpleName());
-            System.out.print(" | Modifiers: " + Modifier.toString(method.getModifiers()));
-            System.out.print(" | Parameters: ");
-            Parameter[] parameters = method.getParameters();
-            if (parameters.length == 0) {
-                System.out.print("None");
-            } else {
-                for (Parameter param : parameters) {
-                    System.out.print(param.getType().getSimpleName() + " " + param.getName() + ", ");
-                }
-                System.out.print("\b\b");
-            }
-            System.out.println();
-        }
-    }
-
-    private void printAllFields(Class<?> clazz) {
-        Field[] fields = clazz.getDeclaredFields();
-        for (Field field : fields) {
-            System.out.print("Field: " + field.getName());
-            System.out.print(" | Type: " + field.getType().getSimpleName());
-            System.out.print(" | Modifiers: " + Modifier.toString(field.getModifiers()));
-            System.out.println();
-        }
     }
 
     private boolean supports(int version) {
