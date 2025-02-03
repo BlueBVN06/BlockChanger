@@ -17,11 +17,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author lrxxh
- * @version 1.5
  * @apiNote 1.16.5 - 1.21.4 easy to use util to be able to
  * set blocks blazingly fast
  */
@@ -29,7 +27,7 @@ public final class BlockChanger {
     private final int MINOR_VERSION;
     private final JavaPlugin plugin;
     private final boolean debug;
-    private final ConcurrentHashMap<Object, Object> worldCache;
+    private final HashMap<Object, Object> worldCache;
 
     // NMS Classes
     private Class<?> CRAFT_BLOCK_DATA;
@@ -52,7 +50,7 @@ public final class BlockChanger {
         plugin = instance;
         MINOR_VERSION = getMinorVersion();
         this.debug = debug;
-        this.worldCache = new ConcurrentHashMap<>();
+        this.worldCache = new HashMap<>();
 
         init();
     }
@@ -177,11 +175,7 @@ public final class BlockChanger {
                 cs = getSections(nmsChunk)[y >> 4];
             }
 
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
-            }
+            if (hasOnlyAir(cs, blockData)) return;
 
             Object result = GET_AND_SET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
 
@@ -222,11 +216,7 @@ public final class BlockChanger {
                 cs = getSections(nmsChunk)[y >> 4];
             }
 
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return;
-            }
+            if (hasOnlyAir(cs, blockData)) return;
 
             Object result = GET_AND_SET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
 
@@ -364,7 +354,6 @@ public final class BlockChanger {
         } else {
             LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "LevelHeightAccessor");
         }
-
         debug("LEVEL_HEIGHT_ACCESSOR Loaded");
 
         CRAFT_WORLD = loadClass(CRAFT_BUKKIT + "CraftWorld");
@@ -405,7 +394,6 @@ public final class BlockChanger {
                 GET_STATES = getMethodHandle(CHUNK_SECTION, "h", DATA_PALETTE_BLOCK);
             } else {
                 GET_STATES = getMethodHandle(CHUNK_SECTION, "i", DATA_PALETTE_BLOCK);
-
             }
             debug("GET_STATES Loaded");
         } catch (Throwable e) {
@@ -467,6 +455,20 @@ public final class BlockChanger {
         } catch (Throwable e) {
             debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
         }
+    }
+
+    private boolean hasOnlyAir(Object cs, BlockData blockData) {
+        try {
+            if (HAS_ONLY_AIR != null) {
+                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return true;
+            } else {
+                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return true;
+            }
+        } catch (Throwable e) {
+            debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
+        }
+
+        return false;
     }
 
     private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
