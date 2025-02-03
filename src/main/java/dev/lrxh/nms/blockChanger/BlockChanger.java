@@ -41,7 +41,7 @@ public final class BlockChanger {
     private MethodHandle GET_CHUNK_AT;
     private MethodHandle GET_HANDLE_WORLD;
     private MethodHandle GET_STATES;
-    private MethodHandle GET_AND_SET;
+    private MethodHandle GET_AND_SET_UNCHECKED;
     private MethodHandle GET;
     // NMS Fields
     private Field NON_EMPTY_BLOCK_COUNT;
@@ -77,7 +77,7 @@ public final class BlockChanger {
      * @return BlockData Block data found at given location
      */
     public BlockData getBlockDataAt(Location location) {
-        Object blockDataNMS = getBlockDataNMS(location.getWorld(), location);
+        Object blockDataNMS = getBlockDataNMS(location);
         return getBlockDataFromNMS(blockDataNMS);
     }
 
@@ -120,7 +120,7 @@ public final class BlockChanger {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
-                    Object blockDataNMS = getBlockDataNMS(world, location);
+                    Object blockDataNMS = getBlockDataNMS(location);
                     BlockData blockData = getBlockDataFromNMS(blockDataNMS);
 
                     snapshot.add(new BlockSnapshot(location, blockData, blockDataNMS, location.getChunk()));
@@ -167,7 +167,7 @@ public final class BlockChanger {
         return distanceX <= viewDistance * 16 && distanceZ <= viewDistance * 16;
     }
 
-    private Object getBlockDataNMS(World world, Location location) {
+    private Object getBlockDataNMS(Location location) {
         try {
             Object nmsWorld = getWorldNMS(location.getWorld());
 
@@ -204,7 +204,7 @@ public final class BlockChanger {
 
             if (hasOnlyAir(cs, blockData)) return;
 
-            Object result = GET_AND_SET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
+            Object result = GET_AND_SET_UNCHECKED.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
 
             if (result == nmsBlockData) return;
 
@@ -236,7 +236,7 @@ public final class BlockChanger {
 
             if (hasOnlyAir(cs, blockData)) return;
 
-            Object result = GET_AND_SET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
+            Object result = GET_AND_SET_UNCHECKED.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15, nmsBlockData);
 
             if (result == nmsBlockData) return;
 
@@ -453,7 +453,7 @@ public final class BlockChanger {
         }
 
         try {
-            GET_AND_SET = getMethodHandle(DATA_PALETTE_BLOCK, "a", Object.class, int.class, int.class, int.class, Object.class);
+            GET_AND_SET_UNCHECKED = getMethodHandle(DATA_PALETTE_BLOCK, "b", Object.class, int.class, int.class, int.class, Object.class);
             debug("SET Loaded");
         } catch (Throwable e) {
             debug("SET didn't load " + e.getCause().getMessage());
