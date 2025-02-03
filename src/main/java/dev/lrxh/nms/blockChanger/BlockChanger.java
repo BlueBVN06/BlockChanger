@@ -4,7 +4,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -43,8 +42,11 @@ public final class BlockChanger {
     private MethodHandle GET_HANDLE_WORLD;
     private MethodHandle GET_STATES;
     private MethodHandle GET_AND_SET;
+    private MethodHandle GET;
     // NMS Fields
     private Field NON_EMPTY_BLOCK_COUNT;
+    // NMS Constructors
+    private Constructor<?> CRAFT_BLOCK_DATA_CONSTRUCTOR;
 
     public BlockChanger(JavaPlugin instance, boolean debug) {
         plugin = instance;
@@ -65,6 +67,18 @@ public final class BlockChanger {
      */
     public void setBlock(Location location, BlockData blockData) {
         setBlock(location, blockData, location.getChunk(), false, null);
+    }
+
+    /**
+     * Gets location's block-data using NMS.
+     * This can be run async;
+     *
+     * @param  location  location to return block-data from
+     * @return BlockData Block data found at given location
+     */
+    public BlockData getBlockDataAt(Location location) {
+        Object blockDataNMS = getBlockDataNMS(location.getWorld(), location);
+        return getBlockDataFromNMS(blockDataNMS);
     }
 
     /**
@@ -105,9 +119,11 @@ public final class BlockChanger {
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
-                    Block block = world.getBlockAt(x, y, z);
                     Location location = new Location(world, x, y, z);
-                    snapshot.add(new BlockSnapshot(location, block.getBlockData(), getBlockDataNMS(block.getBlockData()), location.getChunk()));
+                    Object blockDataNMS = getBlockDataNMS(world, location);
+                    BlockData blockData = getBlockDataFromNMS(blockDataNMS);
+
+                    snapshot.add(new BlockSnapshot(location, blockData, blockDataNMS, location.getChunk()));
                 }
             }
         }
@@ -151,6 +167,26 @@ public final class BlockChanger {
         return distanceX <= viewDistance * 16 && distanceZ <= viewDistance * 16;
     }
 
+    private Object getBlockDataNMS(World world, Location location) {
+        try {
+            Object nmsWorld = getWorldNMS(location.getWorld());
+
+            Object nmsChunk = getChunkNMS(nmsWorld, location.getChunk(), false, null);
+
+            int x = (int) location.getX();
+            int y = location.getBlockY();
+            int z = (int) location.getZ();
+
+            Object cs = getSection(nmsChunk, y);
+
+            return GET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15);
+
+        } catch (Throwable e) {
+            debug("Error occurred while at #getBlock(World, Location) " + e.getMessage());
+        }
+        return null;
+    }
+
     private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache, HashMap<Object, Object> chunkCache) {
         if (chunk == null) return;
         try {
@@ -164,16 +200,7 @@ public final class BlockChanger {
             int y = location.getBlockY();
             int z = (int) location.getZ();
 
-            Object cs;
-            if (LEVEL_HEIGHT_ACCESSOR != null) {
-                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
-
-                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
-
-                cs = getSections(nmsChunk)[i];
-            } else {
-                cs = getSections(nmsChunk)[y >> 4];
-            }
+            Object cs = getSection(nmsChunk, y);
 
             if (hasOnlyAir(cs, blockData)) return;
 
@@ -205,16 +232,7 @@ public final class BlockChanger {
             int y = location.getBlockY();
             int z = (int) location.getZ();
 
-            Object cs;
-            if (LEVEL_HEIGHT_ACCESSOR != null) {
-                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
-
-                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, y);
-
-                cs = getSections(nmsChunk)[i];
-            } else {
-                cs = getSections(nmsChunk)[y >> 4];
-            }
+            Object cs = getSection(nmsChunk, y);
 
             if (hasOnlyAir(cs, blockData)) return;
 
@@ -273,12 +291,39 @@ public final class BlockChanger {
         return null;
     }
 
+    private BlockData getBlockDataFromNMS(Object blockDataNMS) {
+        try {
+            return (BlockData) CRAFT_BLOCK_DATA_CONSTRUCTOR.newInstance(blockDataNMS);
+        } catch (Throwable e) {
+            debug("Error occurred while at #getBlockDataFromNMS(Object) " + e.getMessage());
+        }
+        return null;
+    }
+
     private Object getBlockDataNMS(BlockData blockData) {
         try {
             return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
         } catch (Throwable e) {
             debug("Error occurred while at #getBlockDataNMS(BlockData) " + e.getMessage());
         }
+        return null;
+    }
+
+    private Object getSection(Object nmsChunk, int index) {
+        try {
+            if (LEVEL_HEIGHT_ACCESSOR != null) {
+                Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
+
+                int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, index);
+
+                return getSections(nmsChunk)[i];
+            } else {
+                return getSections(nmsChunk)[index >> 4];
+            }
+        } catch (Throwable e) {
+            debug("Error occurred while at #getSection(Object, int) " + e.getMessage());
+        }
+
         return null;
     }
 
@@ -300,12 +345,12 @@ public final class BlockChanger {
             CRAFT_BUKKIT = "org.bukkit.craftbukkit." + plugin.getServer().getClass().getPackage().getName().replace(".", ",").split(",")[3] + ".";
         }
 
-        Class<?> i_BLOCK_DATA;
+        Class<?> I_BLOCK_DATA;
 
         if (MINOR_VERSION != 16) {
-            i_BLOCK_DATA = loadClass(NET_MINECRAFT + "world.level.block.state.IBlockData");
+            I_BLOCK_DATA = loadClass(NET_MINECRAFT + "world.level.block.state.IBlockData");
         } else {
-            i_BLOCK_DATA = loadClass(NET_MINECRAFT + "IBlockData");
+            I_BLOCK_DATA = loadClass(NET_MINECRAFT + "IBlockData");
         }
         debug("I_BLOCK_DATA Loaded");
 
@@ -372,10 +417,17 @@ public final class BlockChanger {
         debug("CRAFT_BLOCK_DATA Loaded");
 
         try {
-            GET_STATE = getMethodHandle(CRAFT_BLOCK_DATA, "getState", i_BLOCK_DATA);
+            GET_STATE = getMethodHandle(CRAFT_BLOCK_DATA, "getState", I_BLOCK_DATA);
             debug("GET_STATE Loaded");
         } catch (Throwable e) {
             debug("GET_STATE didn't load " + e.getCause().getMessage());
+        }
+
+        try {
+            GET = getMethodHandle(DATA_PALETTE_BLOCK, "a", Object.class, int.class, int.class, int.class);
+            debug("SET Loaded");
+        } catch (Throwable e) {
+            debug("SET didn't load " + e.getCause().getMessage());
         }
 
         try {
@@ -455,6 +507,9 @@ public final class BlockChanger {
         } catch (Throwable e) {
             debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
         }
+
+        CRAFT_BLOCK_DATA_CONSTRUCTOR = getConstructor(CRAFT_BLOCK_DATA, I_BLOCK_DATA);
+        debug("CRAFT_BLOCK_DATA_CONSTRUCTOR Loaded");
     }
 
     private boolean hasOnlyAir(Object cs, BlockData blockData) {
@@ -501,6 +556,17 @@ public final class BlockChanger {
             return field;
         } catch (NoSuchFieldException e) {
             debug("Error occurred while at #getDeclaredField(Class<?>, String) " + e.getMessage());
+        }
+        return null;
+    }
+
+    private Constructor<?> getConstructor(Class<?> clazz, Class<?>... parameterTypes) {
+        try {
+            Constructor<?> constructor = clazz.getDeclaredConstructor(parameterTypes);
+            constructor.setAccessible(true);
+            return constructor;
+        } catch (Exception e) {
+            debug("Error occurred while at invokeConstructor: " + e.getMessage());
         }
         return null;
     }
