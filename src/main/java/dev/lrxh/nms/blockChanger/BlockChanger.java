@@ -85,13 +85,18 @@ public final class BlockChanger {
      * Sets blocks block-data's using NMS.
      * This is suggested to be run async.
      *
-     * @param blocks Map of locations and blockade to be set
+     * @param world World to set block in.
+     * @param blocks Map of locations and block-data to be set
      */
-    public void setBlocks(Map<Location, BlockData> blocks) {
-        HashMap<Object, Object> chunkCache = new HashMap<>();
+    public void setBlocks(World world, Map<Location, BlockData> blocks) {
+        HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
         for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
             setBlock(entry.getKey(), entry.getValue(), entry.getKey().getChunk(), true, chunkCache);
+        }
+
+        for (Chunk chunk : chunkCache.keySet()) {
+            world.refreshChunk(chunk.getX(), chunk.getZ());
         }
     }
 
@@ -140,7 +145,7 @@ public final class BlockChanger {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             long startTime = System.currentTimeMillis();
 
-            HashMap<Object, Object> chunkCache = new HashMap<>();
+            HashMap<Chunk, Object> chunkCache = new HashMap<>();
             for (BlockSnapshot blockSnapshot : snapshot.snapshots) {
                 setBlock(blockSnapshot, chunkCache);
             }
@@ -187,7 +192,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache, HashMap<Object, Object> chunkCache) {
+    private void setBlock(Location location, BlockData blockData, Chunk chunk, boolean cache, HashMap<Chunk, Object> chunkCache) {
         if (chunk == null) return;
         try {
             Object nmsBlockData = getBlockDataNMS(blockData);
@@ -208,16 +213,12 @@ public final class BlockChanger {
 
             if (result == nmsBlockData) return;
 
-            for (Player player : chunk.getWorld().getPlayers()) {
-                if (isPlayerSeeingChunk(player, chunk)) player.sendBlockChange(location, blockData);
-            }
-
         } catch (Throwable e) {
             debug("Error occurred while at #setBlockNew(Location, BlockData) " + e.getMessage());
         }
     }
 
-    private void setBlock(BlockSnapshot snapshot, HashMap<Object, Object> chunkCache) {
+    private void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
             Object nmsBlockData = snapshot.blockDataNMS;
             BlockData blockData = snapshot.blockData;
@@ -264,7 +265,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Object getChunkNMS(Object world, Chunk chunk, boolean cache, HashMap<Object, Object> chunkCache) {
+    private Object getChunkNMS(Object world, Chunk chunk, boolean cache, HashMap<Chunk, Object> chunkCache) {
         if (cache) {
             Object c = chunkCache.get(chunk);
             if (c != null) return c;
@@ -432,7 +433,7 @@ public final class BlockChanger {
 
         try {
             if (supports(21) || MINOR_VERSION == 16) {
-                GET_SECTIONS = getMethodHandle(i_CHUNK_ACCESS, "getSections", Object[].class);
+                GET_SECTIONS = getMethodHandle(i_CHUNK_ACCESS, "getSections", Array.newInstance(CHUNK_SECTION, 0).getClass());
             } else {
                 GET_SECTIONS = getMethodHandle(i_CHUNK_ACCESS, "d", Array.newInstance(CHUNK_SECTION, 0).getClass());
             }
