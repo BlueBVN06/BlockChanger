@@ -61,7 +61,7 @@ public final class BlockChanger {
 
     /**
      * Gets location's block-data using NMS.
-     * This can be run async;
+     * This can be run async.
      *
      * @param location location to return block-data from
      * @return BlockData Block data found at given location
@@ -242,11 +242,15 @@ public final class BlockChanger {
     // 1.8
     private void setBlock(World world, Chunk chunk, Location location, ItemStack itemStack, HashMap<Chunk, Object> chunkCache) {
         try {
+            int x = (int) location.getX();
+            int y = location.getBlockY();
+            int z = (int) location.getZ();
+
             Object iBlockData = GET_COMBINED_ID.invoke(itemStack.getType().getId() + (itemStack.getData().getData() << 12));
             Object nmsWorld = getWorldNMS(world);
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, true, chunkCache);
-            Object cs = getSection(nmsChunk, location.getBlockY());
-            SET_TYPE.invoke(cs, location.getBlockX() & 15, location.getBlockY() & 15, location.getBlockZ() & 15, iBlockData);
+            Object cs = getSection(nmsChunk, y);
+            SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, iBlockData);
 
         } catch (Throwable e) {
             debug("Error occurred while at #setBlockAt(int, int, int, ItemStack) " + e.getCause());
