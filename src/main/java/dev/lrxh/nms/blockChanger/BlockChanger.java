@@ -1,9 +1,6 @@
 package dev.lrxh.nms.blockChanger;
 
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.inventory.ItemStack;
@@ -585,15 +582,23 @@ public final class BlockChanger {
     private boolean hasOnlyAir(Object cs, BlockData blockData) {
         try {
             if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && blockData.getMaterial().isAir()) return true;
+                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && isAir(blockData.getMaterial())) return true;
             } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && blockData.getMaterial().isAir()) return true;
+                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && isAir(blockData.getMaterial())) return true;
             }
         } catch (Throwable e) {
             debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
         }
 
         return false;
+    }
+
+    private boolean isAir(Material material) {
+        return switch (material) {
+            case AIR, CAVE_AIR, VOID_AIR -> true;
+            default -> false;
+        };
+
     }
 
     private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
