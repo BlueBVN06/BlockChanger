@@ -20,7 +20,8 @@ blocks.put(location, item);
 
 blockChanger.setBlocks(world, blocks);
 
-BlockData blockData = blockChanger.getBlockDataAt(location); // Get Block at a location ONLY SUPPORT FOR 1.16+
+// Get Block at a location (ONLY FOR 1.16+)
+BlockData blockData = blockChanger.getBlockDataAt(location); 
 
 blockChanger. // see all available methods
 ``` 
