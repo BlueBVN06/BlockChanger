@@ -330,10 +330,11 @@ public final class BlockChanger {
                     return getSections(nmsChunk)[index >> 4];
                 }
             } else {
-                Object cs = getSections(nmsChunk)[index >> 4];
+                int sectionIndex = index >> 4;
+                Object cs = getSections(nmsChunk)[sectionIndex];
                 if (cs == null) {
-                    cs = CHUNK_SECTION_CONSTRUCTOR.newInstance(index >> 4 << 4, true);
-                    getSections(nmsChunk)[index >> 4] = cs;
+                    cs = CHUNK_SECTION_CONSTRUCTOR.newInstance(sectionIndex << 4, true);
+                    getSections(nmsChunk)[sectionIndex] = cs;
                 }
 
                 return cs;
@@ -598,11 +599,14 @@ public final class BlockChanger {
     }
 
     private boolean isAir(Material material) {
-        return switch (material) {
-            case AIR, CAVE_AIR, VOID_AIR -> true;
-            default -> false;
-        };
-
+        switch (material) {
+            case AIR:
+            case CAVE_AIR:
+            case VOID_AIR:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
