@@ -12,25 +12,15 @@ Just put the [BlockChanger](https://github.com/Devlrxxh/BlockChanger/blob/master
 ```java
 BlockChanger blockChanger = new BlockChanger(main, false);
 
-// 1.16 and higher
-World world = ...;
-Location location = ...;
-BlockData blockData = ...
-Map<Location, BlockData> blocks = new HashMap<>();
-blocks.put(location, blockData);
-
-blockChanger.setBlocks(world, blocks);
-
-// 1.8
 World world = ...;
 Location location = ...;
 ItemStack item = new ItemStack(Material.GOLD_BLOCK);
 Map<Location, ItemStack> blocks = new HashMap<>();
 blocks.put(location, item);
 
-blockChanger.setBlocksLegacy(world, blocks);
+blockChanger.setBlocks(world, blocks);
 
-BlockData blockData = blockChanger.getBlockDataAt(location); // Get Block at a location
+BlockData blockData = blockChanger.getBlockDataAt(location); // Get Block at a location ONLY SUPPORT FOR 1.16+
 
 blockChanger. // see all available methods
 ``` 
