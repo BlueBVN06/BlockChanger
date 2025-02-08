@@ -79,41 +79,19 @@ public final class BlockChanger {
     /**
      * Sets blocks block-data's using NMS.
      * This is suggested to be run async.
-     * <p>
-     * NOT SUPPORTED FOR 1.8
      *
      * @param world  World to set block in.
-     * @param blocks Map of locations and block-data to be set
+     * @param blocks Map of locations and ItemStacks to be set
      */
-    public void setBlocks(World world, Map<Location, BlockData> blocks) {
-        if (MINOR_VERSION == 8) return;
-        HashMap<Chunk, Object> chunkCache = new HashMap<>();
-
-        for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
-            setBlock(entry.getKey(), entry.getValue(), entry.getKey().getChunk(), chunkCache);
-        }
-
-        for (Chunk chunk : chunkCache.keySet()) {
-            world.refreshChunk(chunk.getX(), chunk.getZ());
-        }
-    }
-
-    /**
-     * Sets blocks block-data's using NMS.
-     * This is suggested to be run async.
-     * <p>
-     * ONLY SUPPORTED FOR 1.8
-     *
-     * @param world  World to set block in.
-     * @param blocks Map of locations and block-data to be set
-     */
-    public void setBlocksLegacy(World world, Map<Location, ItemStack> blocks) {
-        if (MINOR_VERSION != 8) return;
-
+    public void setBlocks(World world, Map<Location, ItemStack> blocks) {
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
         for (Map.Entry<Location, ItemStack> entry : blocks.entrySet()) {
-            setBlock(world, entry.getKey().getChunk(), entry.getKey(), entry.getValue(), chunkCache);
+            if (MINOR_VERSION == 8) {
+                setBlock(world, entry.getKey().getChunk(), entry.getKey(), entry.getValue(), chunkCache);
+            } else {
+                setBlock(entry.getKey(), entry.getValue().getType().createBlockData(), entry.getKey().getChunk(), chunkCache);
+            }
         }
 
         for (Chunk chunk : chunkCache.keySet()) {
