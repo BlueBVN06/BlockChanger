@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -151,7 +152,11 @@ public final class BlockChanger {
 
                         snapshot.add(new BlockSnapshot(location, blockData, blockDataNMS, location.getChunk()));
                     } else {
-                        snapshot.add(new BlockSnapshotLegacy(location, location.getChunk(), new ItemStack(world.getBlockAt(location).getType())));
+                        Block block = world.getBlockAt(location);
+                        ItemStack itemStack = new ItemStack(block.getType());
+                        itemStack.setData(block.getState().getData());
+
+                        snapshot.add(new BlockSnapshotLegacy(location, location.getChunk(), itemStack));
                     }
                 }
             }
@@ -579,10 +584,10 @@ public final class BlockChanger {
             debug("CRAFT_BLOCK_DATA_CONSTRUCTOR Loaded");
         }
 
-        CHUNK_SECTION_CONSTRUCTOR = getConstructor(CHUNK_SECTION, int.class, boolean.class);
-        debug("CHUNK_SECTION_CONSTRUCTOR Loaded");
-
         if (MINOR_VERSION == 8) {
+            CHUNK_SECTION_CONSTRUCTOR = getConstructor(CHUNK_SECTION, int.class, boolean.class);
+            debug("CHUNK_SECTION_CONSTRUCTOR Loaded");
+
             try {
                 GET_COMBINED_ID = getMethodHandleStatic(BLOCK, "getByCombinedId", I_BLOCK_DATA, int.class);
                 debug("GET_COMBINED_ID Loaded");
