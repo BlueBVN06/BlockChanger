@@ -2,7 +2,7 @@
 <div align="center">
   
 </div>
-A single class that offers very fast block placing, high performance and allowing multiple versions (1.16.5 - 1.21.4)
+A single class that offers very fast block placing, high performance and allowing multiple versions (1.8 - 1.21.4)
   
 More Information can be found at: https://www.spigotmc.org/threads/methods-for-changing-massive-amount-of-blocks-up-to-14m-blocks-s.395868/
 
