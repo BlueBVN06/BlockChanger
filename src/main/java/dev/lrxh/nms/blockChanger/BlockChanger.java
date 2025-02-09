@@ -20,41 +20,41 @@ import java.util.Map;
  * @apiNote 1.8 - 1.21.4 easy to use util to be able to
  * set blocks blazingly fast
  */
-public final class BlockChanger {
-    private final int MINOR_VERSION;
-    private final JavaPlugin plugin;
-    private final boolean debug;
-    private final HashMap<Object, Object> worldCache;
+public class BlockChanger {
+    private static int MINOR_VERSION;
+    private static JavaPlugin plugin;
+    private static boolean debug;
+    private static HashMap<Object, Object> worldCache;
 
     // NMS Classes
-    private Class<?> CRAFT_BLOCK_DATA;
-    private Class<?> LEVEL_HEIGHT_ACCESSOR;
-    private Class<?> CRAFT_WORLD;
-    private Class<?> WORLD_SERVER;
-    private Class<?> BLOCK;
+    private static Class<?> CRAFT_BLOCK_DATA;
+    private static Class<?> LEVEL_HEIGHT_ACCESSOR;
+    private static Class<?> CRAFT_WORLD;
+    private static Class<?> WORLD_SERVER;
+    private static Class<?> BLOCK;
     // NMS MethodHandles
-    private MethodHandle GET_STATE;
-    private MethodHandle GET_SECTIONS;
-    private MethodHandle GET_SECTION_INDEX;
-    private MethodHandle HAS_ONLY_AIR;
-    private MethodHandle GET_CHUNK_AT;
-    private MethodHandle GET_HANDLE_WORLD;
-    private MethodHandle GET_STATES;
-    private MethodHandle GET_AND_SET_UNCHECKED;
-    private MethodHandle GET;
-    private MethodHandle GET_COMBINED_ID;
-    private MethodHandle SET_TYPE;
+    private static MethodHandle GET_STATE;
+    private static MethodHandle GET_SECTIONS;
+    private static MethodHandle GET_SECTION_INDEX;
+    private static MethodHandle HAS_ONLY_AIR;
+    private static MethodHandle GET_CHUNK_AT;
+    private static MethodHandle GET_HANDLE_WORLD;
+    private static MethodHandle GET_STATES;
+    private static MethodHandle GET_AND_SET_UNCHECKED;
+    private static MethodHandle GET;
+    private static MethodHandle GET_COMBINED_ID;
+    private static MethodHandle SET_TYPE;
     // NMS Fields
-    private Field NON_EMPTY_BLOCK_COUNT;
+    private static Field NON_EMPTY_BLOCK_COUNT;
     // NMS Constructors
-    private Constructor<?> CRAFT_BLOCK_DATA_CONSTRUCTOR;
-    private Constructor<?> CHUNK_SECTION_CONSTRUCTOR;
+    private static Constructor<?> CRAFT_BLOCK_DATA_CONSTRUCTOR;
+    private static Constructor<?> CHUNK_SECTION_CONSTRUCTOR;
 
-    public BlockChanger(JavaPlugin instance, boolean debug) {
+    public static void load(JavaPlugin instance, boolean debug) {
         plugin = instance;
         MINOR_VERSION = getMinorVersion();
-        this.debug = debug;
-        this.worldCache = new HashMap<>();
+        BlockChanger.debug = debug;
+        worldCache = new HashMap<>();
 
         init();
     }
@@ -66,7 +66,7 @@ public final class BlockChanger {
      * @param location location to return block-data from
      * @return BlockData Block data found at given location
      */
-    public BlockData getBlockDataAt(Location location) {
+    public static BlockData getBlockDataAt(Location location) {
         if (MINOR_VERSION == 8) return null;
 
         Object blockDataNMS = getBlockDataNMS(location);
@@ -80,7 +80,7 @@ public final class BlockChanger {
      * @param world  World to set block in.
      * @param blocks Map of locations and ItemStacks to be set
      */
-    public void setBlocks(World world, Map<Location, ItemStack> blocks) {
+    public static void setBlocks(World world, Map<Location, ItemStack> blocks) {
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
         for (Map.Entry<Location, ItemStack> entry : blocks.entrySet()) {
@@ -103,7 +103,7 @@ public final class BlockChanger {
      * @param pos2 Position 2
      * @return Snapshot This is needed to revert captured snapshot
      */
-    public Snapshot capture(Location pos1, Location pos2) {
+    public static Snapshot capture(Location pos1, Location pos2) {
         Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
 
@@ -145,7 +145,7 @@ public final class BlockChanger {
      *
      * @param snapshot Snapshot you have captured
      */
-    public void revert(World world, Snapshot snapshot) {
+    public static void revert(World world, Snapshot snapshot) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             long startTime = System.currentTimeMillis();
             HashMap<Chunk, Object> chunkCache = new HashMap<>();
@@ -164,7 +164,7 @@ public final class BlockChanger {
     }
 
 
-    private Object getBlockDataNMS(Location location) {
+    private static Object getBlockDataNMS(Location location) {
         try {
             Object nmsWorld = getWorldNMS(location.getWorld());
 
@@ -184,7 +184,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private void setBlock(Location location, BlockData blockData, Chunk chunk, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(Location location, BlockData blockData, Chunk chunk, HashMap<Chunk, Object> chunkCache) {
         if (chunk == null) return;
         try {
             Object nmsBlockData = getBlockDataNMS(blockData);
@@ -208,10 +208,9 @@ public final class BlockChanger {
         }
     }
 
-    private void setBlock(AbstractBlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(AbstractBlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
-            if (snapshot instanceof BlockSnapshot) {
-                BlockSnapshot blockSnapshot = (BlockSnapshot) snapshot;
+            if (snapshot instanceof BlockSnapshot blockSnapshot) {
                 Object nmsBlockData = blockSnapshot.blockDataNMS;
                 BlockData blockData = (BlockData) blockSnapshot.blockData;
                 Location location = snapshot.location;
@@ -240,7 +239,7 @@ public final class BlockChanger {
     }
 
     // 1.8
-    private void setBlock(World world, Chunk chunk, Location location, ItemStack itemStack, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(World world, Chunk chunk, Location location, ItemStack itemStack, HashMap<Chunk, Object> chunkCache) {
         try {
             int x = (int) location.getX();
             int y = location.getBlockY();
@@ -257,7 +256,7 @@ public final class BlockChanger {
         }
     }
 
-    private Object getWorldNMS(World world) {
+    private static Object getWorldNMS(World world) {
         Object c = worldCache.get(world.getName());
         if (c != null) return c;
         try {
@@ -272,7 +271,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Object getChunkNMS(Object world, Chunk chunk, boolean cache, HashMap<Chunk, Object> chunkCache) {
+    private static Object getChunkNMS(Object world, Chunk chunk, boolean cache, HashMap<Chunk, Object> chunkCache) {
         if (cache) {
             Object c = chunkCache.get(chunk);
             if (c != null) return c;
@@ -290,7 +289,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Object getLevelHeightAccessor(Object nmsChunk) {
+    private static Object getLevelHeightAccessor(Object nmsChunk) {
         try {
             return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
         } catch (Throwable e) {
@@ -299,7 +298,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private BlockData getBlockDataFromNMS(Object blockDataNMS) {
+    private static BlockData getBlockDataFromNMS(Object blockDataNMS) {
         try {
             return (BlockData) CRAFT_BLOCK_DATA_CONSTRUCTOR.newInstance(blockDataNMS);
         } catch (Throwable e) {
@@ -308,7 +307,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Object getBlockDataNMS(BlockData blockData) {
+    private static Object getBlockDataNMS(BlockData blockData) {
         try {
             return GET_STATE.invoke(CRAFT_BLOCK_DATA.cast(blockData));
         } catch (Throwable e) {
@@ -317,7 +316,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Object getSection(Object nmsChunk, int index) {
+    private static Object getSection(Object nmsChunk, int index) {
         try {
             if (MINOR_VERSION != 8) {
                 if (LEVEL_HEIGHT_ACCESSOR != null) {
@@ -347,7 +346,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private void init() {
+    private static void init() {
         String CRAFT_BUKKIT;
         String NET_MINECRAFT = "net.minecraft.";
 
@@ -584,7 +583,7 @@ public final class BlockChanger {
         }
     }
 
-    private boolean hasOnlyAir(Object cs, BlockData blockData) {
+    private static boolean hasOnlyAir(Object cs, BlockData blockData) {
         try {
             if (HAS_ONLY_AIR != null) {
                 if ((Boolean) HAS_ONLY_AIR.invoke(cs) && isAir(blockData.getMaterial())) return true;
@@ -598,7 +597,7 @@ public final class BlockChanger {
         return false;
     }
 
-    private boolean isAir(Material material) {
+    private static boolean isAir(Material material) {
         switch (material) {
             case AIR:
             case CAVE_AIR:
@@ -609,18 +608,18 @@ public final class BlockChanger {
         }
     }
 
-    private MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
+    private static MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
         return lookup.findVirtual(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
     }
 
-    private MethodHandle getMethodHandleStatic(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
+    private static MethodHandle getMethodHandleStatic(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
         return lookup.findStatic(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
     }
 
 
-    private Object[] getSections(Object nmsChunk) {
+    private static Object[] getSections(Object nmsChunk) {
         try {
             return (Object[]) GET_SECTIONS.invoke(nmsChunk);
         } catch (Throwable e) {
@@ -629,7 +628,7 @@ public final class BlockChanger {
         return new Object[0];
     }
 
-    private Class<?> loadClass(String className) {
+    private static Class<?> loadClass(String className) {
         try {
             return Class.forName(className);
         } catch (ClassNotFoundException e) {
@@ -638,7 +637,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Field getDeclaredField(Class<?> clazz, String fieldName) {
+    private static Field getDeclaredField(Class<?> clazz, String fieldName) {
         try {
             Field field = clazz.getDeclaredField(fieldName);
             field.setAccessible(true);
@@ -649,7 +648,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private Constructor<?> getConstructor(Class<?> clazz, Class<?>... parameterTypes) {
+    private static Constructor<?> getConstructor(Class<?> clazz, Class<?>... parameterTypes) {
         try {
             Constructor<?> constructor = clazz.getDeclaredConstructor(parameterTypes);
             constructor.setAccessible(true);
@@ -660,7 +659,7 @@ public final class BlockChanger {
         return null;
     }
 
-    private void printAllMethods(Class<?> clazz) {
+    private static void printAllMethods(Class<?> clazz) {
         Method[] methods = clazz.getDeclaredMethods();
         for (Method method : methods) {
             System.out.print("Method: " + method.getName());
@@ -680,7 +679,7 @@ public final class BlockChanger {
         }
     }
 
-    private void printAllFields(Class<?> clazz) {
+    private static void printAllFields(Class<?> clazz) {
         Field[] fields = clazz.getDeclaredFields();
         for (Field field : fields) {
             System.out.print("Field: " + field.getName());
@@ -690,11 +689,11 @@ public final class BlockChanger {
         }
     }
 
-    private boolean supports(int version) {
+    private static boolean supports(int version) {
         return MINOR_VERSION >= version;
     }
 
-    private int getMinorVersion() {
+    private static int getMinorVersion() {
         String[] versionParts = plugin.getServer().getBukkitVersion().split("-")[0].split("\\.");
         if (versionParts.length >= 2) {
             return Integer.parseInt(versionParts[1]);
@@ -702,7 +701,7 @@ public final class BlockChanger {
         return 0;
     }
 
-    private void debug(String message) {
+    private static void debug(String message) {
         if (debug) plugin.getLogger().info(message);
     }
 
