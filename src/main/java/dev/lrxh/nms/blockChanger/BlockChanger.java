@@ -163,6 +163,19 @@ public class BlockChanger {
         });
     }
 
+    /**
+     * Turn a Block into and ItemStack.
+     *
+     * @param block Block to be turned into an ItemStack
+     * @return ItemStack
+     */
+    public static ItemStack fromBlock(Block block) {
+        ItemStack itemStack = new ItemStack(block.getType());
+        itemStack.setData(block.getState().getData());
+
+        return itemStack;
+    }
+
 
     private static Object getBlockDataNMS(Location location) {
         try {
