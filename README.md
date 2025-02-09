@@ -10,7 +10,7 @@ More Information can be found at: https://www.spigotmc.org/threads/methods-for-c
 Just put the [BlockChanger](https://github.com/Devlrxxh/BlockChanger/blob/master/src/main/java/dev/lrxh/nms/blockChanger/BlockChanger.java) class in your project  
 ## Usage
 ```java
-BlockChanger blockChanger = new BlockChanger(main, false);
+BlockChanger.load(this, false);
 
 World world = ...;
 Location location = ...;
@@ -18,12 +18,12 @@ ItemStack item = new ItemStack(Material.GOLD_BLOCK);
 Map<Location, ItemStack> blocks = new HashMap<>();
 blocks.put(location, item);
 
-blockChanger.setBlocks(world, blocks);
+BlockChanger.setBlocks(world, blocks);
 
 // Get Block at a location (ONLY FOR 1.16+)
-BlockData blockData = blockChanger.getBlockDataAt(location); 
+BlockData blockData = BlockChanger.getBlockDataAt(location); 
 
-blockChanger. // see all available methods
+BlockChanger. // see all available methods
 ``` 
 ### Snapshot System
 ```java
@@ -31,7 +31,7 @@ Location pos1 = ...;
 Location pos2 = ...;
 
 // Works for all supported versions
-BlockChanger.Snapshot snapshot = blockChanger.capture(pos1, pos2);
+BlockChanger.Snapshot snapshot = BlockChanger.capture(pos1, pos2);
 
-blockChanger.revert(snapshot);
+BlockChanger.revert(snapshot);
 ``` 
