@@ -184,11 +184,12 @@ public class BlockChanger {
      */
     public static ItemStack fromBlock(Block block) {
         ItemStack itemStack = new ItemStack(block.getType());
-        itemStack.setData(block.getState().getData());
+        if (MINOR_VERSION == 8) {
+            itemStack.setData(block.getState().getData());
+        }
 
         return itemStack;
     }
-
 
     private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
