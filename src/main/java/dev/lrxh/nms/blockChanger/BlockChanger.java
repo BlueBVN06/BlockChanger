@@ -97,6 +97,28 @@ public class BlockChanger {
     }
 
     /**
+     * Paste a snapshot and allowing an offset
+     * This is suggested to be run async.
+     *
+     * @param snapshot Captured Snapshot.
+     * @param pos New location to paste snapshot at.
+     */
+    public static void paste(Snapshot snapshot, Location pos) {
+        List<BlockSnapshot> blocks = new ArrayList<>();
+        int offsetX = (int) (snapshot.pos.getX() - pos.getX());
+        int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
+
+        for (BlockSnapshot blockSnapshot : snapshot.blocks) {
+            BlockSnapshot b1 = blockSnapshot.clone();
+
+            b1.addOffset(offsetX, offsetZ);
+            blocks.add(b1);
+        }
+
+        setBlocks(snapshot.world, blocks);
+    }
+
+    /**
      * Capture all blocks between 2 positions
      *
      * @param pos1 Position 1
@@ -108,7 +130,7 @@ public class BlockChanger {
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
         World world = max.getWorld();
 
-        Snapshot snapshot = new Snapshot(world);
+        Snapshot snapshot = new Snapshot(world, pos1);
         int minX = Math.min(min.getBlockX(), max.getBlockX());
         int minY = Math.min(min.getBlockY(), max.getBlockY());
         int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
@@ -600,9 +622,11 @@ public class BlockChanger {
     public static class Snapshot {
         protected final World world;
         protected List<BlockSnapshot> blocks;
+        protected final Location pos;
 
-        protected Snapshot(World world) {
+        protected Snapshot(World world, Location pos) {
             this.world = world;
+            this.pos = pos;
             blocks = new ArrayList<>();
         }
 
