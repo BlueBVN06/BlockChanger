@@ -108,6 +108,7 @@ public class BlockChanger {
         int offsetX = (int) (snapshot.pos.getX() - pos.getX());
         int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
 
+
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
             BlockSnapshot b1 = blockSnapshot.clone();
 
@@ -115,7 +116,7 @@ public class BlockChanger {
             blocks.add(b1);
         }
 
-        setBlocks(snapshot.world, blocks);
+        setBlocks(pos.getWorld(), blocks);
     }
 
     /**
