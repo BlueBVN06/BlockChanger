@@ -78,6 +78,8 @@ public class BlockChanger {
 
     /**
      * Paste a snapshot and allowing an offset
+     * This is suggested to be run async.
+
      *
      * @param snapshot Captured Snapshot.
      * @param offsetX  The offset to apply to the X coordinate of each block.
@@ -138,8 +140,9 @@ public class BlockChanger {
     }
 
     /**
-     * Revert all changes from the snapshot, this runs async
-     *
+     * Revert all changes from the snapshot.
+     * This is suggested to be run async.
+
      * @param snapshot Snapshot you have captured
      */
     public static void revert(World world, Snapshot snapshot) {
