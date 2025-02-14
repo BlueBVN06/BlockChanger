@@ -77,13 +77,13 @@ public class BlockChanger {
     }
 
     /**
-     * Duplicate a snapshot and allowing an offset
+     * Paste a snapshot and allowing an offset
      *
      * @param snapshot Captured Snapshot.
      * @param offsetX  The offset to apply to the X coordinate of each block.
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
      */
-    public static void duplicate(Snapshot snapshot, int offsetX, int offsetZ) {
+    public static void paste(Snapshot snapshot, int offsetX, int offsetZ) {
         List<BlockSnapshot> blocks = new ArrayList<>();
 
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
