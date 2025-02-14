@@ -1,6 +1,9 @@
 package dev.lrxh.nms.blockChanger;
 
-import org.bukkit.*;
+import org.bukkit.Chunk;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.inventory.ItemStack;
@@ -38,14 +41,11 @@ public class BlockChanger {
     private static MethodHandle HAS_ONLY_AIR;
     private static MethodHandle GET_CHUNK_AT;
     private static MethodHandle GET_HANDLE_WORLD;
-    private static MethodHandle GET_STATES;
-    private static MethodHandle GET;
     private static MethodHandle GET_COMBINED_ID;
     private static MethodHandle SET_TYPE;
     // NMS Fields
     private static Field NON_EMPTY_BLOCK_COUNT;
     // NMS Constructors
-    private static Constructor<?> CRAFT_BLOCK_DATA_CONSTRUCTOR;
     private static Constructor<?> CHUNK_SECTION_CONSTRUCTOR;
 
     public static void load(JavaPlugin instance, boolean debug) {
@@ -79,7 +79,6 @@ public class BlockChanger {
     /**
      * Paste a snapshot and allowing an offset
      * This is suggested to be run async.
-
      *
      * @param snapshot Captured Snapshot.
      * @param offsetX  The offset to apply to the X coordinate of each block.
@@ -142,7 +141,7 @@ public class BlockChanger {
     /**
      * Revert all changes from the snapshot.
      * This is suggested to be run async.
-
+     *
      * @param snapshot Snapshot you have captured
      */
     public static void revert(World world, Snapshot snapshot) {
@@ -168,11 +167,15 @@ public class BlockChanger {
     }
 
 
-    private static Object getBlockDataNMS(Location location) {
+    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
-            Object nmsWorld = getWorldNMS(location.getWorld());
+            Object nmsBlockData = snapshot.blockDataNMS;
+            BlockData blockData = snapshot.blockData;
+            Location location = snapshot.location;
 
-            Object nmsChunk = getChunkNMS(nmsWorld, location.getChunk(), false, null);
+            Chunk chunk = snapshot.chunk;
+            Object nmsWorld = getWorldNMS(snapshot.location.getWorld());
+            Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
 
             int x = (int) location.getX();
             int y = location.getBlockY();
@@ -180,57 +183,12 @@ public class BlockChanger {
 
             Object cs = getSection(nmsChunk, y);
 
-            return GET.invoke(GET_STATES.invoke(cs), x & 15, y & 15, z & 15);
+            if (MINOR_VERSION != 8) if (hasOnlyAir(cs, blockData)) return;
 
-        } catch (Throwable e) {
-            debug("Error occurred while at #getBlockDataNMS(Location) " + e.getMessage());
-        }
-        return null;
-    }
-
-    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
-        try {
-            if (!snapshot.legacy) {
-                Object nmsBlockData = snapshot.blockDataNMS;
-                BlockData blockData = snapshot.blockData;
-                Location location = snapshot.location;
-
-                Chunk chunk = snapshot.chunk;
-                Object nmsWorld = getWorldNMS(snapshot.location.getWorld());
-
-                Object nmsChunk = getChunkNMS(nmsWorld, chunk, true, chunkCache);
-
-                int x = (int) location.getX();
-                int y = location.getBlockY();
-                int z = (int) location.getZ();
-
-                Object cs = getSection(nmsChunk, y);
-
-                if (hasOnlyAir(cs, blockData)) return;
-
-                SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
-            } else {
-                setBlock(snapshot.location.getWorld(), snapshot.chunk, snapshot.location, snapshot.blockDataNMS, chunkCache);
-            }
+            SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
 
         } catch (Throwable e) {
             debug("Error occurred while at #setBlock(BlockSnapshot, HashMap) " + e.getMessage());
-        }
-    }
-
-    // 1.8
-    private static void setBlock(World world, Chunk chunk, Location location, Object iBlockData, HashMap<Chunk, Object> chunkCache) {
-        try {
-            int x = (int) location.getX();
-            int y = location.getBlockY();
-            int z = (int) location.getZ();
-            Object nmsWorld = getWorldNMS(world);
-            Object nmsChunk = getChunkNMS(nmsWorld, chunk, true, chunkCache);
-            Object cs = getSection(nmsChunk, y);
-            SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, iBlockData);
-
-        } catch (Throwable e) {
-            debug("Error occurred while at #setBlockAt(int, int, int, ItemStack) " + e.getCause());
         }
     }
 
@@ -249,16 +207,14 @@ public class BlockChanger {
         return null;
     }
 
-    private static Object getChunkNMS(Object world, Chunk chunk, boolean cache, HashMap<Chunk, Object> chunkCache) {
-        if (cache) {
-            Object c = chunkCache.get(chunk);
-            if (c != null) return c;
-        }
+    private static Object getChunkNMS(Object world, Chunk chunk, HashMap<Chunk, Object> chunkCache) {
+        Object c = chunkCache.get(chunk);
+        if (c != null) return c;
 
         try {
             Object nmsChunk = GET_CHUNK_AT.invoke(world, chunk.getX(), chunk.getZ());
 
-            if (cache) chunkCache.put(chunk, nmsChunk);
+            chunkCache.put(chunk, nmsChunk);
 
             return nmsChunk;
         } catch (Throwable e) {
@@ -272,15 +228,6 @@ public class BlockChanger {
             return LEVEL_HEIGHT_ACCESSOR.cast(nmsChunk);
         } catch (Throwable e) {
             debug("Error occurred while at #getLevelHeightAccessor(Object) " + e.getMessage());
-        }
-        return null;
-    }
-
-    private static BlockData getBlockDataFromNMS(Object blockDataNMS) {
-        try {
-            return (BlockData) CRAFT_BLOCK_DATA_CONSTRUCTOR.newInstance(blockDataNMS);
-        } catch (Throwable e) {
-            debug("Error occurred while at #getBlockDataFromNMS(Object) " + e.getMessage());
         }
         return null;
     }
@@ -355,16 +302,6 @@ public class BlockChanger {
         }
         debug("I_BLOCK_DATA Loaded");
 
-        Class<?> DATA_PALETTE_BLOCK = null;
-        if (MINOR_VERSION != 8) {
-            if (MINOR_VERSION != 16) {
-                DATA_PALETTE_BLOCK = loadClass(NET_MINECRAFT + "world.level.chunk.DataPaletteBlock");
-            } else {
-                DATA_PALETTE_BLOCK = loadClass(NET_MINECRAFT + "DataPaletteBlock");
-            }
-            debug("DATA_PALETTE_BLOCK Loaded");
-        }
-
         Class<?> CHUNK;
         if (MINOR_VERSION != 16 && MINOR_VERSION != 8) {
             CHUNK = loadClass(NET_MINECRAFT + "world.level.chunk.Chunk");
@@ -435,15 +372,6 @@ public class BlockChanger {
             }
         }
 
-        if (MINOR_VERSION != 8) {
-            try {
-                GET = getMethodHandle(DATA_PALETTE_BLOCK, "a", Object.class, int.class, int.class, int.class);
-                debug("SET Loaded");
-            } catch (Throwable e) {
-                debug("SET didn't load " + e.getCause().getMessage());
-            }
-        }
-
         try {
             if (MINOR_VERSION != 8) {
                 if (supports(21) || MINOR_VERSION == 16) {
@@ -461,18 +389,6 @@ public class BlockChanger {
         }
 
         if (MINOR_VERSION != 8) {
-            try {
-                if (supports(20)) {
-                    GET_STATES = getMethodHandle(CHUNK_SECTION, "h", DATA_PALETTE_BLOCK);
-                } else {
-                    GET_STATES = getMethodHandle(CHUNK_SECTION, "i", DATA_PALETTE_BLOCK);
-                }
-                debug("GET_STATES Loaded");
-            } catch (Throwable e) {
-                debug("GET_STATES didn't load " + e.getCause().getMessage());
-            }
-
-
             try {
                 if (MINOR_VERSION == 21) {
                     GET_SECTION_INDEX = getMethodHandle(LEVEL_HEIGHT_ACCESSOR, "f", int.class, int.class);
@@ -528,11 +444,6 @@ public class BlockChanger {
             debug("GET_HANDLE_WORLD Loaded");
         } catch (Throwable e) {
             debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
-        }
-
-        if (MINOR_VERSION != 8) {
-            CRAFT_BLOCK_DATA_CONSTRUCTOR = getConstructor(CRAFT_BLOCK_DATA, I_BLOCK_DATA);
-            debug("CRAFT_BLOCK_DATA_CONSTRUCTOR Loaded");
         }
 
         if (MINOR_VERSION == 8) {
@@ -687,8 +598,8 @@ public class BlockChanger {
     }
 
     public static class Snapshot {
-        protected List<BlockSnapshot> blocks;
         protected final World world;
+        protected List<BlockSnapshot> blocks;
 
         protected Snapshot(World world) {
             this.world = world;
@@ -705,19 +616,17 @@ public class BlockChanger {
         protected final BlockData blockData;
         protected Location location;
         protected Chunk chunk;
-        protected final boolean legacy;
 
         /**
          * BlockChanger representation of blocks for multi version support
          * <p>
-         * This is 1.16-1.21 use the other constructor for 1.8
+         * This is 1.16 - 1.21 use the other constructor for 1.8
          *
          * @param blockData itemStack
          */
         public BlockSnapshot(Location location, BlockData blockData) {
             this.blockDataNMS = getBlockDataNMS(blockData);
             this.blockData = blockData;
-            this.legacy = false;
             this.location = location;
             this.chunk = location.getChunk();
         }
@@ -741,11 +650,9 @@ public class BlockChanger {
                 }
                 this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
                 this.blockData = null;
-                this.legacy = true;
             } else {
                 this.blockData = material.createBlockData();
                 this.blockDataNMS = getBlockDataNMS(blockData);
-                this.legacy = false;
             }
 
             this.location = location;
@@ -768,21 +675,19 @@ public class BlockChanger {
             }
             this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
             this.blockData = null;
-            this.legacy = true;
             this.location = location;
             this.chunk = location.getChunk();
         }
 
-        protected BlockSnapshot(Location location, BlockData blockData, boolean legacy, Object blockDataNMS, Chunk chunk) {
+        protected BlockSnapshot(Location location, BlockData blockData, Object blockDataNMS, Chunk chunk) {
             this.location = location;
             this.blockData = blockData;
-            this.legacy = legacy;
             this.blockDataNMS = blockDataNMS;
             this.chunk = chunk;
         }
 
         protected BlockSnapshot clone() {
-            return new BlockSnapshot(new Location(location.getWorld(), location.getX(), location.getY(), location.getZ()), blockData, legacy, blockDataNMS, chunk);
+            return new BlockSnapshot(new Location(location.getWorld(), location.getX(), location.getY(), location.getZ()), blockData, blockDataNMS, chunk);
         }
 
         protected void addOffset(int offsetX, int offsetZ) {
