@@ -30,7 +30,7 @@ BlockChanger.Snapshot snapshot = BlockChanger.capture(pos1, pos2);
 
 BlockChanger.revert(snapshot);
 ```
-## Duplication System
+## Pasting System
 ```java
 BlockChanger.Snapshot snapshot = ...;
 
