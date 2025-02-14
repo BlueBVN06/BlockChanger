@@ -35,5 +35,5 @@ BlockChanger.revert(snapshot);
 BlockChanger.Snapshot snapshot = ...;
 
 // Pasting the snapshot with an offset of X: 100 and Z: 0
-BlockChanger.duplicate(snapshot, 100, 0);
+BlockChanger.paste(snapshot, 100, 0);
 ``` 
