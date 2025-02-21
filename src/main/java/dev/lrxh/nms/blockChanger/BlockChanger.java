@@ -38,13 +38,10 @@ public class BlockChanger {
     private static MethodHandle GET_STATE;
     private static MethodHandle GET_SECTIONS;
     private static MethodHandle GET_SECTION_INDEX;
-    private static MethodHandle HAS_ONLY_AIR;
     private static MethodHandle GET_CHUNK_AT;
     private static MethodHandle GET_HANDLE_WORLD;
     private static MethodHandle GET_COMBINED_ID;
     private static MethodHandle SET_TYPE;
-    // NMS Fields
-    private static Field NON_EMPTY_BLOCK_COUNT;
     // NMS Constructors
     private static Constructor<?> CHUNK_SECTION_CONSTRUCTOR;
 
@@ -424,31 +421,6 @@ public class BlockChanger {
             } catch (Throwable e) {
                 debug("GET_SECTIONS didn't load " + e.getCause().getMessage());
             }
-
-            try {
-                if (supports(18)) {
-                    HAS_ONLY_AIR = getMethodHandle(CHUNK_SECTION, "c", boolean.class);
-                }
-                debug("HAS_ONLY_AIR Loaded");
-            } catch (Throwable e) {
-                debug("GET_SECTIONS didn't load " + e.getCause().getMessage());
-            }
-
-            try {
-                if (HAS_ONLY_AIR == null) {
-                    assert CHUNK_SECTION != null;
-                    if (MINOR_VERSION == 17) {
-                        NON_EMPTY_BLOCK_COUNT = getDeclaredField(CHUNK_SECTION, "f");
-                    } else if (MINOR_VERSION == 16) {
-                        NON_EMPTY_BLOCK_COUNT = getDeclaredField(CHUNK_SECTION, "c");
-                    }
-
-                    debug("NON_EMPTY_BLOCK_COUNT Loaded");
-                }
-            } catch (Throwable e) {
-                debug("NON_EMPTY_BLOCK_COUNT didn't load " + e.getCause().getMessage());
-            }
-
         }
 
         try {
