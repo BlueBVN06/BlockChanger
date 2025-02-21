@@ -43,7 +43,6 @@ public class BlockChanger {
     private static MethodHandle GET_HANDLE_WORLD;
     private static MethodHandle GET_COMBINED_ID;
     private static MethodHandle SET_TYPE;
-    private static MethodHandle GET_MATERIAL;
     // NMS Fields
     private static Field NON_EMPTY_BLOCK_COUNT;
     // NMS Constructors
@@ -66,6 +65,7 @@ public class BlockChanger {
      * @param blocks Map of locations and ItemStacks to be set
      */
     public static void setBlocks(World world, List<BlockSnapshot> blocks) {
+        long startTime = System.currentTimeMillis();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
         for (BlockSnapshot block : blocks) {
@@ -75,6 +75,9 @@ public class BlockChanger {
         for (Chunk chunk : chunkCache.keySet()) {
             world.refreshChunk(chunk.getX(), chunk.getZ());
         }
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+        debug("Pasted blocks time: " + duration + " ms (" + blocks.size() + ")");
     }
 
     /**
@@ -108,7 +111,6 @@ public class BlockChanger {
         List<BlockSnapshot> blocks = new ArrayList<>();
         int offsetX = (int) (snapshot.pos.getX() - pos.getX());
         int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
-
 
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
             BlockSnapshot b1 = blockSnapshot.clone();
@@ -195,7 +197,6 @@ public class BlockChanger {
     private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
             Object nmsBlockData = snapshot.blockDataNMS;
-            Material material = (Material) GET_MATERIAL.invoke(nmsBlockData);
             Location location = snapshot.location;
 
             Chunk chunk = location.getChunk();
@@ -207,8 +208,7 @@ public class BlockChanger {
             int z = (int) location.getZ();
 
             Object cs = getSection(nmsChunk, y);
-
-            if (hasOnlyAir(cs, material)) return;
+            if (cs == null) return;
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
 
@@ -295,28 +295,8 @@ public class BlockChanger {
             }
 
         } catch (Throwable e) {
-            debug("Error occurred while at #getSection(Object, int) " + e.getMessage());
+            return null;
         }
-
-        return null;
-    }
-
-    private static boolean hasOnlyAir(Object cs, Material material) {
-        try {
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && isAir(material)) return true;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && isAir(material)) return true;
-            }
-        } catch (Throwable e) {
-            debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
-        }
-
-        return false;
-    }
-
-    private static boolean isAir(Material material) {
-        return material.name().toLowerCase().contains("air");
     }
 
     private static void init() {
@@ -407,13 +387,6 @@ public class BlockChanger {
 
         CRAFT_BLOCK_DATA = loadClass(CRAFT_BUKKIT + "block.data.CraftBlockData");
         debug("CRAFT_BLOCK_DATA Loaded");
-
-        try {
-            GET_MATERIAL = getMethodHandle(CRAFT_BLOCK_DATA, "getMaterial", Material.class);
-            debug("GET_MATERIAL Loaded");
-        } catch (Throwable e) {
-            debug("GET_MATERIAL didn't load " + e.getCause().getMessage());
-        }
 
         if (MINOR_VERSION != 8) {
             try {
