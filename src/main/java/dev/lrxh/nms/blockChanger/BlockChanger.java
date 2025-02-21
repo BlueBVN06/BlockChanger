@@ -26,7 +26,7 @@ public class BlockChanger {
     private static int MINOR_VERSION;
     private static JavaPlugin plugin;
     private static boolean debug;
-    private static HashMap<Object, Object> worldCache;
+    private static HashMap<String, Object> worldCache;
 
     // NMS Classes
     private static Class<?> CRAFT_BLOCK_DATA;
@@ -43,6 +43,7 @@ public class BlockChanger {
     private static MethodHandle GET_HANDLE_WORLD;
     private static MethodHandle GET_COMBINED_ID;
     private static MethodHandle SET_TYPE;
+    private static MethodHandle GET_MATERIAL;
     // NMS Fields
     private static Field NON_EMPTY_BLOCK_COUNT;
     // NMS Constructors
@@ -194,10 +195,10 @@ public class BlockChanger {
     private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
             Object nmsBlockData = snapshot.blockDataNMS;
-            BlockData blockData = snapshot.blockData;
+            Material material = (Material) GET_MATERIAL.invoke(nmsBlockData);
             Location location = snapshot.location;
 
-            Chunk chunk = snapshot.chunk;
+            Chunk chunk = location.getChunk();
             Object nmsWorld = getWorldNMS(snapshot.location.getWorld());
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
 
@@ -207,7 +208,7 @@ public class BlockChanger {
 
             Object cs = getSection(nmsChunk, y);
 
-            if (MINOR_VERSION != 8) if (hasOnlyAir(cs, blockData)) return;
+            if (hasOnlyAir(cs, material)) return;
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
 
@@ -218,7 +219,12 @@ public class BlockChanger {
 
     private static Object getWorldNMS(World world) {
         Object c = worldCache.get(world.getName());
-        if (c != null) return c;
+        if (c != null) {
+            return c;
+        } else {
+            worldCache.remove(world.getName());
+        }
+
         try {
             Object craftWorld = CRAFT_WORLD.cast(world);
             Object worldServer = WORLD_SERVER.cast(GET_HANDLE_WORLD.invoke(craftWorld));
@@ -295,6 +301,24 @@ public class BlockChanger {
         return null;
     }
 
+    private static boolean hasOnlyAir(Object cs, Material material) {
+        try {
+            if (HAS_ONLY_AIR != null) {
+                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && isAir(material)) return true;
+            } else {
+                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && isAir(material)) return true;
+            }
+        } catch (Throwable e) {
+            debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
+        }
+
+        return false;
+    }
+
+    private static boolean isAir(Material material) {
+        return material.name().toLowerCase().contains("air");
+    }
+
     private static void init() {
         String CRAFT_BUKKIT;
         String NET_MINECRAFT = "net.minecraft.";
@@ -359,7 +383,7 @@ public class BlockChanger {
         debug("WORLD Loaded");
 
         if (MINOR_VERSION != 8) {
-            if (MINOR_VERSION != 16) {
+            if (MINOR_VERSION != 16 && MINOR_VERSION != 8) {
                 LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "world.level.LevelHeightAccessor");
             } else {
                 LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "LevelHeightAccessor");
@@ -381,11 +405,15 @@ public class BlockChanger {
             debug("I_CHUNK_ACCESS Loaded");
         }
 
-        if (MINOR_VERSION != 8) {
-            CRAFT_BLOCK_DATA = loadClass(CRAFT_BUKKIT + "block.data.CraftBlockData");
-            debug("CRAFT_BLOCK_DATA Loaded");
-        }
+        CRAFT_BLOCK_DATA = loadClass(CRAFT_BUKKIT + "block.data.CraftBlockData");
+        debug("CRAFT_BLOCK_DATA Loaded");
 
+        try {
+            GET_MATERIAL = getMethodHandle(CRAFT_BLOCK_DATA, "getMaterial", Material.class);
+            debug("GET_MATERIAL Loaded");
+        } catch (Throwable e) {
+            debug("GET_MATERIAL didn't load " + e.getCause().getMessage());
+        }
 
         if (MINOR_VERSION != 8) {
             try {
@@ -499,31 +527,6 @@ public class BlockChanger {
         }
     }
 
-    private static boolean hasOnlyAir(Object cs, BlockData blockData) {
-        try {
-            if (HAS_ONLY_AIR != null) {
-                if ((Boolean) HAS_ONLY_AIR.invoke(cs) && isAir(blockData.getMaterial())) return true;
-            } else {
-                if ((Short) NON_EMPTY_BLOCK_COUNT.get(cs) == 0 && isAir(blockData.getMaterial())) return true;
-            }
-        } catch (Throwable e) {
-            debug("GET_HANDLE_WORLD didn't load " + e.getCause().getMessage());
-        }
-
-        return false;
-    }
-
-    private static boolean isAir(Material material) {
-        switch (material) {
-            case AIR:
-            case CAVE_AIR:
-            case VOID_AIR:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     private static MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
         return lookup.findVirtual(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
@@ -623,13 +626,13 @@ public class BlockChanger {
 
     public static class Snapshot {
         protected final World world;
-        protected List<BlockSnapshot> blocks;
+        protected final List<BlockSnapshot> blocks;
         protected final Location pos;
 
         protected Snapshot(World world, Location pos) {
             this.world = world;
             this.pos = pos;
-            blocks = new ArrayList<>();
+            this.blocks = new ArrayList<>();
         }
 
         protected void add(BlockSnapshot blockData) {
@@ -639,10 +642,7 @@ public class BlockChanger {
 
     public static class BlockSnapshot {
         protected final Object blockDataNMS;
-        protected final BlockData blockData;
         protected Location location;
-        protected Chunk chunk;
-
         /**
          * BlockChanger representation of blocks for multi version support
          * <p>
@@ -652,9 +652,7 @@ public class BlockChanger {
          */
         public BlockSnapshot(Location location, BlockData blockData) {
             this.blockDataNMS = getBlockDataNMS(blockData);
-            this.blockData = blockData;
             this.location = location;
-            this.chunk = location.getChunk();
         }
 
         /**
@@ -675,14 +673,11 @@ public class BlockChanger {
                     System.err.println("Error initializing blockDataNMS: " + throwable.getMessage());
                 }
                 this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
-                this.blockData = null;
             } else {
-                this.blockData = material.createBlockData();
-                this.blockDataNMS = getBlockDataNMS(blockData);
+                this.blockDataNMS = getBlockDataNMS(material.createBlockData());
             }
 
             this.location = location;
-            this.chunk = location.getChunk();
         }
 
         /**
@@ -700,25 +695,20 @@ public class BlockChanger {
                 System.err.println("Error initializing blockDataNMS: " + throwable.getMessage());
             }
             this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
-            this.blockData = null;
             this.location = location;
-            this.chunk = location.getChunk();
         }
 
-        protected BlockSnapshot(Location location, BlockData blockData, Object blockDataNMS, Chunk chunk) {
+        protected BlockSnapshot(Location location, Object blockDataNMS) {
             this.location = location;
-            this.blockData = blockData;
             this.blockDataNMS = blockDataNMS;
-            this.chunk = chunk;
         }
 
         protected BlockSnapshot clone() {
-            return new BlockSnapshot(new Location(location.getWorld(), location.getX(), location.getY(), location.getZ()), blockData, blockDataNMS, chunk);
+            return new BlockSnapshot(new Location(location.getWorld(), location.getX(), location.getY(), location.getZ()), blockDataNMS);
         }
 
         protected void addOffset(int offsetX, int offsetZ) {
             this.location.add(offsetX, 0, offsetZ);
-            this.chunk = location.getChunk();
         }
     }
 }
