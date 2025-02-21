@@ -360,7 +360,7 @@ public class BlockChanger {
         debug("WORLD Loaded");
 
         if (MINOR_VERSION != 8) {
-            if (MINOR_VERSION != 16 && MINOR_VERSION != 8) {
+            if (MINOR_VERSION != 16) {
                 LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "world.level.LevelHeightAccessor");
             } else {
                 LEVEL_HEIGHT_ACCESSOR = loadClass(NET_MINECRAFT + "LevelHeightAccessor");
