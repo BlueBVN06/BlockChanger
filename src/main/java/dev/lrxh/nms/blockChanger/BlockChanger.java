@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
- * @author lrxxh
+ * @author Devlrxxh
  * @apiNote 1.8 - 1.21.4 easy to use util to be able to
  * set blocks blazingly fast
  */
