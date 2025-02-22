@@ -224,7 +224,7 @@ public class BlockChanger {
                 }
             }
         }
-
+        debug("Captured Snapshot ("  + snapshot.blocks.size() + ")");
         return snapshot;
     }
 
@@ -262,6 +262,8 @@ public class BlockChanger {
                 }
             }
 
+
+            debug("Captured Snapshot ("  + snapshot.blocks.size() + ")");
             return snapshot;
         });
     }
