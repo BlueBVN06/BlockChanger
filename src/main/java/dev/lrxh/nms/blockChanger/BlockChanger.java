@@ -156,8 +156,6 @@ public class BlockChanger {
         int offsetX = (int) (snapshot.pos.getX() - pos.getX());
         int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
 
-        debug(pos.toString());
-
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
             BlockSnapshot b1 = blockSnapshot.clone();
 
@@ -180,8 +178,6 @@ public class BlockChanger {
             List<BlockSnapshot> blocks = new ArrayList<>();
             int offsetX = (int) (snapshot.pos.getX() - pos.getX());
             int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
-
-            debug(pos.toString());
 
             for (BlockSnapshot blockSnapshot : snapshot.blocks) {
                 BlockSnapshot b1 = blockSnapshot.clone();
