@@ -221,7 +221,7 @@ public class BlockChanger {
      * @param pos2 Position 2
      * @return Snapshot captured snapshot
      */
-    public static Snapshot capture(Location pos1, Location pos2) {
+    public static Snapshot capture(Location pos1, Location pos2, boolean ignoreAir) {
         Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
         World world = max.getWorld();
@@ -241,6 +241,9 @@ public class BlockChanger {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
+                    Object nmsBlockData = getNMSBlockData(location.getChunk(), world, location, chunkCache, cache);
+                    if (nmsBlockData == null) continue;
+                    if (ignoreAir) if (nmsBlockData.toString().toLowerCase().contains("air")) continue;
                     snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache, cache)));
                 }
             }
@@ -256,8 +259,8 @@ public class BlockChanger {
      * @param pos2 Position 2
      * @return A CompletableFuture containing the Snapshot captured.
      */
-    public static CompletableFuture<Snapshot> captureAsync(Location pos1, Location pos2) {
-        return CompletableFuture.supplyAsync(() -> capture(pos1, pos2));
+    public static CompletableFuture<Snapshot> captureAsync(Location pos1, Location pos2, boolean ignoreAir) {
+        return CompletableFuture.supplyAsync(() -> capture(pos1, pos2, ignoreAir));
     }
 
     /**
