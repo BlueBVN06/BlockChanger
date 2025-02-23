@@ -16,7 +16,6 @@ import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -156,10 +155,10 @@ public class BlockChanger {
      * @param offsetX  The offset to apply to the X coordinate of each block.
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
      */
-    public static void paste(Snapshot snapshot, int offsetX, int offsetZ) {
+    public static void paste(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
         List<BlockSnapshot> blocks = new ArrayList<>();
-
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
+            if (ignoreAir) if (blockSnapshot.blockDataNMS.toString().toLowerCase().contains("air")) continue;
             BlockSnapshot b1 = blockSnapshot.clone();
             b1.addOffset(offsetX, offsetZ);
             blocks.add(b1);
@@ -176,8 +175,8 @@ public class BlockChanger {
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
      * @return A CompletableFuture that completes when the operation is done.
      */
-    public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, int offsetX, int offsetZ) {
-        return CompletableFuture.runAsync(() -> paste(snapshot, offsetX, offsetZ));
+    public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
+        return CompletableFuture.runAsync(() -> paste(snapshot, offsetX, offsetZ, ignoreAir));
     }
 
     /**
