@@ -16,6 +16,7 @@ import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -65,9 +66,10 @@ public class BlockChanger {
     public static void setBlocks(World world, List<BlockSnapshot> blocks) {
         long startTime = System.currentTimeMillis();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
+        Map<String, Object> cache = new HashMap<>();
 
         for (BlockSnapshot block : blocks) {
-            setBlock(block, chunkCache);
+            setBlock(block, chunkCache, cache);
         }
 
         for (Chunk chunk : chunkCache.keySet()) {
@@ -87,19 +89,7 @@ public class BlockChanger {
      */
     public static CompletableFuture<Void> setBlocksAsync(World world, List<BlockSnapshot> blocks) {
         return CompletableFuture.runAsync(() -> {
-            long startTime = System.currentTimeMillis();
-            HashMap<Chunk, Object> chunkCache = new HashMap<>();
-
-            for (BlockSnapshot block : blocks) {
-                setBlock(block, chunkCache);
-            }
-
-            for (Chunk chunk : chunkCache.keySet()) {
-                world.refreshChunk(chunk.getX(), chunk.getZ());
-            }
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-            debug("Pasted blocks time: " + duration + " ms (" + blocks.size() + ")");
+            setBlocks(world, blocks);
         });
     }
 
@@ -113,30 +103,38 @@ public class BlockChanger {
      */
     public static void setBlocks(World world, Location pos1, Location pos2, Material material) {
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
+        HashMap<String, Object> cache = new HashMap<>();
 
-        Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
-        Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
+        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
+        int minY = Math.min(pos1.getBlockY(), pos2.getBlockY());
+        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
 
-        Snapshot snapshot = new Snapshot(world, pos1);
-        int minX = Math.min(min.getBlockX(), max.getBlockX());
-        int minY = Math.min(min.getBlockY(), max.getBlockY());
-        int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
-
-        int maxX = Math.max(min.getBlockX(), max.getBlockX());
-        int maxY = Math.max(min.getBlockY(), max.getBlockY());
-        int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
+        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
+        int maxY = Math.max(pos1.getBlockY(), pos2.getBlockY());
+        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
 
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
-                    setBlock(new BlockSnapshot(location, material), chunkCache);
+                    setBlock(new BlockSnapshot(location, material), chunkCache, cache);
                 }
             }
         }
 
-        for (Chunk chunk : chunkCache.keySet()) {
-            world.refreshChunk(chunk.getX(), chunk.getZ());
+        refreshChunks(world, minX, minZ, maxX, maxZ);
+    }
+
+    private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
+        int chunkStartX = minX >> 4;
+        int chunkStartZ = minZ >> 4;
+        int chunkEndX = maxX >> 4;
+        int chunkEndZ = maxZ >> 4;
+
+        for (int x = chunkStartX; x <= chunkEndX; x++) {
+            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
+                world.refreshChunk(x, z);
+            }
         }
     }
 
@@ -150,34 +148,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> setBlocksAsync(World world, Location pos1, Location pos2, Material material) {
-        return CompletableFuture.runAsync(() -> {
-            HashMap<Chunk, Object> chunkCache = new HashMap<>();
-
-            Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
-            Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
-
-            Snapshot snapshot = new Snapshot(world, pos1);
-            int minX = Math.min(min.getBlockX(), max.getBlockX());
-            int minY = Math.min(min.getBlockY(), max.getBlockY());
-            int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
-
-            int maxX = Math.max(min.getBlockX(), max.getBlockX());
-            int maxY = Math.max(min.getBlockY(), max.getBlockY());
-            int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
-
-            for (int x = minX; x <= maxX; x++) {
-                for (int y = minY; y <= maxY; y++) {
-                    for (int z = minZ; z <= maxZ; z++) {
-                        Location location = new Location(world, x, y, z);
-                        setBlock(new BlockSnapshot(location, material), chunkCache);
-                    }
-                }
-            }
-
-            for (Chunk chunk : chunkCache.keySet()) {
-                world.refreshChunk(chunk.getX(), chunk.getZ());
-            }
-        });
+        return CompletableFuture.runAsync(() -> setBlocks(world, pos1, pos2, material));
     }
 
     /**
@@ -208,19 +179,8 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, int offsetX, int offsetZ) {
-        return CompletableFuture.runAsync(() -> {
-            List<BlockSnapshot> blocks = new ArrayList<>();
-
-            for (BlockSnapshot blockSnapshot : snapshot.blocks) {
-                BlockSnapshot b1 = blockSnapshot.clone();
-                b1.addOffset(offsetX, offsetZ);
-                blocks.add(b1);
-            }
-
-            setBlocks(snapshot.world, blocks);
-        });
+        return CompletableFuture.runAsync(() -> paste(snapshot, offsetX, offsetZ));
     }
-
 
     /**
      * Paste a snapshot and allowing an offset
@@ -232,8 +192,6 @@ public class BlockChanger {
         List<BlockSnapshot> blocks = new ArrayList<>();
         int offsetX = (int) (snapshot.pos.getX() - pos.getX());
         int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
-
-        debug(pos.toString());
 
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
             BlockSnapshot b1 = blockSnapshot.clone();
@@ -253,22 +211,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, Location pos) {
-        return CompletableFuture.runAsync(() -> {
-            List<BlockSnapshot> blocks = new ArrayList<>();
-            int offsetX = (int) (snapshot.pos.getX() - pos.getX());
-            int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
-
-            debug(pos.toString());
-
-            for (BlockSnapshot blockSnapshot : snapshot.blocks) {
-                BlockSnapshot b1 = blockSnapshot.clone();
-
-                b1.addOffset(offsetX, offsetZ);
-                blocks.add(b1);
-            }
-
-            setBlocks(pos.getWorld(), blocks);
-        });
+        return CompletableFuture.runAsync(() -> paste(snapshot, pos));
     }
 
     /**
@@ -283,6 +226,7 @@ public class BlockChanger {
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
         World world = max.getWorld();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
+        Map<String, Object> cache = new HashMap<>();
 
         Snapshot snapshot = new Snapshot(world, pos1);
         int minX = Math.min(min.getBlockX(), max.getBlockX());
@@ -297,14 +241,13 @@ public class BlockChanger {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
-                    snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache)));
+                    snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache, cache)));
                 }
             }
         }
         debug("Captured Snapshot (" + snapshot.blocks.size() + ")");
         return snapshot;
     }
-
 
     /**
      * Capture all blocks between 2 positions
@@ -314,34 +257,7 @@ public class BlockChanger {
      * @return A CompletableFuture containing the Snapshot captured.
      */
     public static CompletableFuture<Snapshot> captureAsync(Location pos1, Location pos2) {
-        return CompletableFuture.supplyAsync(() -> {
-            Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
-            Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
-            World world = max.getWorld();
-            HashMap<Chunk, Object> chunkCache = new HashMap<>();
-
-            Snapshot snapshot = new Snapshot(world, pos1);
-            int minX = Math.min(min.getBlockX(), max.getBlockX());
-            int minY = Math.min(min.getBlockY(), max.getBlockY());
-            int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
-
-            int maxX = Math.max(min.getBlockX(), max.getBlockX());
-            int maxY = Math.max(min.getBlockY(), max.getBlockY());
-            int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
-
-            for (int x = minX; x <= maxX; x++) {
-                for (int y = minY; y <= maxY; y++) {
-                    for (int z = minZ; z <= maxZ; z++) {
-                        Location location = new Location(world, x, y, z);
-                        snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache)));
-                    }
-                }
-            }
-
-
-            debug("Captured Snapshot (" + snapshot.blocks.size() + ")");
-            return snapshot;
-        });
+        return CompletableFuture.supplyAsync(() -> capture(pos1, pos2));
     }
 
     /**
@@ -365,14 +281,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> revertAsync(World world, Snapshot snapshot) {
-        return CompletableFuture.runAsync(() -> {
-            long startTime = System.currentTimeMillis();
-
-            setBlocks(world, snapshot.blocks);
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-            debug("Snapshot revert time: " + duration + " ms (" + snapshot.blocks.size() + ")");
-        });
+        return CompletableFuture.runAsync(() -> revert(world, snapshot));
     }
 
     /**
@@ -390,7 +299,7 @@ public class BlockChanger {
         return itemStack;
     }
 
-    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache, Map<String, Object> cache) {
         try {
             Object nmsBlockData = snapshot.blockDataNMS;
             Location location = snapshot.location;
@@ -399,15 +308,16 @@ public class BlockChanger {
             Object nmsWorld = getWorldNMS(snapshot.location.getWorld());
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
 
+            if (nmsBlockData.equals(getNMSBlockData(chunk, snapshot.location.getWorld(), location, chunkCache, cache))) return;
+
             int x = (int) location.getX();
             int y = location.getBlockY();
             int z = (int) location.getZ();
 
-            Object cs = getSection(nmsChunk, y);
+            Object cs = getSection(nmsChunk, y, cache);
             if (cs == null) return;
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
-
         } catch (Throwable e) {
             debug("Error occurred while at #setBlock(BlockSnapshot, HashMap) " + e.getMessage());
         }
@@ -467,39 +377,49 @@ public class BlockChanger {
         return null;
     }
 
-    private static Object getSection(Object nmsChunk, int index) {
+    private static Object getSection(Object nmsChunk, int index, Map<String, Object> cache) {
         try {
+            int sectionIndex = index >> 4;
+
+            String cacheKey = nmsChunk.hashCode() + ":" + sectionIndex;
+
+            if (cache.containsKey(cacheKey)) {
+                return cache.get(cacheKey);
+            }
+
+            Object section;
+
             if (MINOR_VERSION != 8) {
                 if (LEVEL_HEIGHT_ACCESSOR != null) {
                     Object LevelHeightAccessor = getLevelHeightAccessor(nmsChunk);
 
                     int i = (int) GET_SECTION_INDEX.invoke(LevelHeightAccessor, index);
 
-                    return getSections(nmsChunk)[i];
+                    section = getSections(nmsChunk)[i];
                 } else {
-                    return getSections(nmsChunk)[index >> 4];
+                    section = getSections(nmsChunk)[sectionIndex];
                 }
             } else {
-                int sectionIndex = index >> 4;
-                Object cs = getSections(nmsChunk)[sectionIndex];
-                if (cs == null) {
-                    cs = CHUNK_SECTION_CONSTRUCTOR.newInstance(sectionIndex << 4, true);
-                    getSections(nmsChunk)[sectionIndex] = cs;
+                section = getSections(nmsChunk)[sectionIndex];
+                if (section == null) {
+                    section = CHUNK_SECTION_CONSTRUCTOR.newInstance(sectionIndex << 4, true);
+                    getSections(nmsChunk)[sectionIndex] = section;
                 }
-
-                return cs;
             }
+
+            if (section != null) {
+                cache.put(cacheKey, section);
+            }
+
+            return section;
 
         } catch (Throwable e) {
             return null;
         }
     }
 
-    private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Chunk, Object> chunkCache) {
+    private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Chunk, Object> chunkCache, Map<String, Object> cache) {
         try {
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (!chunk.isLoaded()) chunk.load();
-            });
             Object nmsWorld = getWorldNMS(world);
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
 
@@ -507,7 +427,7 @@ public class BlockChanger {
             int y = location.getBlockY();
             int z = (int) location.getZ();
 
-            Object cs = getSection(nmsChunk, y);
+            Object cs = getSection(nmsChunk, y, cache);
             if (cs == null) return null;
 
             return GET_BLOCK_DATA.invoke(cs, x & 15, y & 15, z & 15);
