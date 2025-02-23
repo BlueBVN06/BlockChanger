@@ -66,10 +66,9 @@ public class BlockChanger {
     public static void setBlocks(World world, List<BlockSnapshot> blocks) {
         long startTime = System.currentTimeMillis();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
-        Map<String, Object> cache = new HashMap<>();
 
         for (BlockSnapshot block : blocks) {
-            setBlock(block, chunkCache, cache);
+            setBlock(block, chunkCache);
         }
 
         for (Chunk chunk : chunkCache.keySet()) {
@@ -103,7 +102,6 @@ public class BlockChanger {
      */
     public static void setBlocks(World world, Location pos1, Location pos2, Material material) {
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
-        HashMap<String, Object> cache = new HashMap<>();
 
         int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
         int minY = Math.min(pos1.getBlockY(), pos2.getBlockY());
@@ -117,7 +115,7 @@ public class BlockChanger {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
-                    setBlock(new BlockSnapshot(location, material), chunkCache, cache);
+                    setBlock(new BlockSnapshot(location, material), chunkCache);
                 }
             }
         }
@@ -226,7 +224,6 @@ public class BlockChanger {
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
         World world = max.getWorld();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
-        Map<String, Object> cache = new HashMap<>();
 
         Snapshot snapshot = new Snapshot(world, pos1);
         int minX = Math.min(min.getBlockX(), max.getBlockX());
@@ -241,10 +238,10 @@ public class BlockChanger {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
-                    Object nmsBlockData = getNMSBlockData(location.getChunk(), world, location, chunkCache, cache);
+                    Object nmsBlockData = getNMSBlockData(location.getChunk(), world, location, chunkCache);
                     if (nmsBlockData == null) continue;
                     if (ignoreAir) if (nmsBlockData.toString().toLowerCase().contains("air")) continue;
-                    snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache, cache)));
+                    snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache)));
                 }
             }
         }
@@ -302,7 +299,7 @@ public class BlockChanger {
         return itemStack;
     }
 
-    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache, Map<String, Object> cache) {
+    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         try {
             Object nmsBlockData = snapshot.blockDataNMS;
             Location location = snapshot.location;
@@ -311,13 +308,13 @@ public class BlockChanger {
             Object nmsWorld = getWorldNMS(snapshot.location.getWorld());
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
 
-            if (nmsBlockData.equals(getNMSBlockData(chunk, snapshot.location.getWorld(), location, chunkCache, cache))) return;
+            if (nmsBlockData.equals(getNMSBlockData(chunk, snapshot.location.getWorld(), location, chunkCache))) return;
 
             int x = (int) location.getX();
             int y = location.getBlockY();
             int z = (int) location.getZ();
 
-            Object cs = getSection(nmsChunk, y, cache);
+            Object cs = getSection(nmsChunk, y);
             if (cs == null) return;
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, nmsBlockData);
@@ -380,15 +377,9 @@ public class BlockChanger {
         return null;
     }
 
-    private static Object getSection(Object nmsChunk, int index, Map<String, Object> cache) {
+    private static Object getSection(Object nmsChunk, int index) {
         try {
             int sectionIndex = index >> 4;
-
-            String cacheKey = nmsChunk.hashCode() + ":" + sectionIndex;
-
-            if (cache.containsKey(cacheKey)) {
-                return cache.get(cacheKey);
-            }
 
             Object section;
 
@@ -410,10 +401,6 @@ public class BlockChanger {
                 }
             }
 
-            if (section != null) {
-                cache.put(cacheKey, section);
-            }
-
             return section;
 
         } catch (Throwable e) {
@@ -421,7 +408,7 @@ public class BlockChanger {
         }
     }
 
-    private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Chunk, Object> chunkCache, Map<String, Object> cache) {
+    private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Chunk, Object> chunkCache) {
         try {
             Object nmsWorld = getWorldNMS(world);
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
@@ -430,7 +417,7 @@ public class BlockChanger {
             int y = location.getBlockY();
             int z = (int) location.getZ();
 
-            Object cs = getSection(nmsChunk, y, cache);
+            Object cs = getSection(nmsChunk, y);
             if (cs == null) return null;
 
             return GET_BLOCK_DATA.invoke(cs, x & 15, y & 15, z & 15);
