@@ -83,7 +83,7 @@ public class BlockChanger {
      *
      * @param world  World to set block in.
      * @param blocks Map of locations and ItemStacks to be set
-     * @return A CompletableFuture that completes when the paste operation is done.
+     * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> setBlocksAsync(World world, List<BlockSnapshot> blocks) {
         return CompletableFuture.runAsync(() -> {
@@ -100,6 +100,83 @@ public class BlockChanger {
             long endTime = System.currentTimeMillis();
             long duration = endTime - startTime;
             debug("Pasted blocks time: " + duration + " ms (" + blocks.size() + ")");
+        });
+    }
+
+    /**
+     * Sets blocks block-data's using NMS.
+     *
+     * @param world    World to set block in.
+     * @param pos1     Position 1
+     * @param pos2     Position 2
+     * @param material Material to fill all blocks between pos1 and pos2
+     */
+    public static void setBlocks(World world, Location pos1, Location pos2, Material material) {
+        HashMap<Chunk, Object> chunkCache = new HashMap<>();
+
+        Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
+        Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
+
+        Snapshot snapshot = new Snapshot(world, pos1);
+        int minX = Math.min(min.getBlockX(), max.getBlockX());
+        int minY = Math.min(min.getBlockY(), max.getBlockY());
+        int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
+
+        int maxX = Math.max(min.getBlockX(), max.getBlockX());
+        int maxY = Math.max(min.getBlockY(), max.getBlockY());
+        int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Location location = new Location(world, x, y, z);
+                    setBlock(new BlockSnapshot(location, material), chunkCache);
+                }
+            }
+        }
+
+        for (Chunk chunk : chunkCache.keySet()) {
+            world.refreshChunk(chunk.getX(), chunk.getZ());
+        }
+    }
+
+    /**
+     * Sets blocks block-data's using NMS.
+     *
+     * @param world    World to set block in.
+     * @param pos1     Position 1
+     * @param pos2     Position 2
+     * @param material Material to fill all blocks between pos1 and pos2
+     * @return A CompletableFuture that completes when the operation is done.
+     */
+    public static CompletableFuture<Void> setBlocksAsync(World world, Location pos1, Location pos2, Material material) {
+        return CompletableFuture.runAsync(() -> {
+            HashMap<Chunk, Object> chunkCache = new HashMap<>();
+
+            Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
+            Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
+
+            Snapshot snapshot = new Snapshot(world, pos1);
+            int minX = Math.min(min.getBlockX(), max.getBlockX());
+            int minY = Math.min(min.getBlockY(), max.getBlockY());
+            int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
+
+            int maxX = Math.max(min.getBlockX(), max.getBlockX());
+            int maxY = Math.max(min.getBlockY(), max.getBlockY());
+            int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
+
+            for (int x = minX; x <= maxX; x++) {
+                for (int y = minY; y <= maxY; y++) {
+                    for (int z = minZ; z <= maxZ; z++) {
+                        Location location = new Location(world, x, y, z);
+                        setBlock(new BlockSnapshot(location, material), chunkCache);
+                    }
+                }
+            }
+
+            for (Chunk chunk : chunkCache.keySet()) {
+                world.refreshChunk(chunk.getX(), chunk.getZ());
+            }
         });
     }
 
@@ -128,7 +205,7 @@ public class BlockChanger {
      * @param snapshot Captured Snapshot.
      * @param offsetX  The offset to apply to the X coordinate of each block.
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
-     * @return A CompletableFuture that completes when the paste operation is done.
+     * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, int offsetX, int offsetZ) {
         return CompletableFuture.runAsync(() -> {
@@ -156,6 +233,8 @@ public class BlockChanger {
         int offsetX = (int) (snapshot.pos.getX() - pos.getX());
         int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
 
+        debug(pos.toString());
+
         for (BlockSnapshot blockSnapshot : snapshot.blocks) {
             BlockSnapshot b1 = blockSnapshot.clone();
 
@@ -170,14 +249,16 @@ public class BlockChanger {
      * Paste a snapshot and allowing an offset
      *
      * @param snapshot Captured Snapshot.
-     * @param pos New location to paste snapshot at.
-     * @return A CompletableFuture that completes when the paste operation is done.
+     * @param pos      New location to paste snapshot at.
+     * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, Location pos) {
         return CompletableFuture.runAsync(() -> {
             List<BlockSnapshot> blocks = new ArrayList<>();
             int offsetX = (int) (snapshot.pos.getX() - pos.getX());
             int offsetZ = (int) (snapshot.pos.getZ() - pos.getZ());
+
+            debug(pos.toString());
 
             for (BlockSnapshot blockSnapshot : snapshot.blocks) {
                 BlockSnapshot b1 = blockSnapshot.clone();
@@ -220,7 +301,7 @@ public class BlockChanger {
                 }
             }
         }
-        debug("Captured Snapshot ("  + snapshot.blocks.size() + ")");
+        debug("Captured Snapshot (" + snapshot.blocks.size() + ")");
         return snapshot;
     }
 
@@ -230,8 +311,7 @@ public class BlockChanger {
      *
      * @param pos1 Position 1
      * @param pos2 Position 2
-     * @return A CompletableFuture containing the Snapshot object.
-     *         The snapshot can be used to revert the captured blocks at a later time.
+     * @return A CompletableFuture containing the Snapshot captured.
      */
     public static CompletableFuture<Snapshot> captureAsync(Location pos1, Location pos2) {
         return CompletableFuture.supplyAsync(() -> {
@@ -259,7 +339,7 @@ public class BlockChanger {
             }
 
 
-            debug("Captured Snapshot ("  + snapshot.blocks.size() + ")");
+            debug("Captured Snapshot (" + snapshot.blocks.size() + ")");
             return snapshot;
         });
     }
@@ -282,7 +362,7 @@ public class BlockChanger {
      * Revert all changes from the snapshot.
      *
      * @param snapshot Snapshot you have captured
-     * @return A CompletableFuture that completes when the paste operation is done.
+     * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> revertAsync(World world, Snapshot snapshot) {
         return CompletableFuture.runAsync(() -> {
