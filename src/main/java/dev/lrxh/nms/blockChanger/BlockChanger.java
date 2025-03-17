@@ -5,6 +5,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -74,6 +75,7 @@ public class BlockChanger {
         for (Chunk chunk : chunkCache.keySet()) {
             world.refreshChunk(chunk.getX(), chunk.getZ());
         }
+
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
         debug("Pasted blocks time: " + duration + " ms (" + blocks.size() + ")");
@@ -121,6 +123,29 @@ public class BlockChanger {
         }
 
         refreshChunks(world, minX, minZ, maxX, maxZ);
+    }
+
+    public static void loadChunks(Location pos1, Location pos2) {
+        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
+        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
+
+        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
+        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
+
+        loadChunks(pos1.getWorld(), minX, minZ, maxX, maxZ);
+    }
+
+    private static void loadChunks(World world, int minX, int minZ, int maxX, int maxZ) {
+        int chunkStartX = minX >> 4;
+        int chunkStartZ = minZ >> 4;
+        int chunkEndX = maxX >> 4;
+        int chunkEndZ = maxZ >> 4;
+
+        for (int x = chunkStartX; x <= chunkEndX; x++) {
+            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
+                world.loadChunk(x, z);
+            }
+        }
     }
 
     private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
@@ -281,6 +306,15 @@ public class BlockChanger {
         ItemStack itemStack = new ItemStack(block.getType());
         if (MINOR_VERSION == 8) {
             itemStack.setData(block.getState().getData());
+        }
+
+        return itemStack;
+    }
+
+    public static ItemStack fromBlock(BlockState block) {
+        ItemStack itemStack = new ItemStack(block.getType());
+        if (MINOR_VERSION == 8) {
+            itemStack.setData(block.getData());
         }
 
         return itemStack;
@@ -512,9 +546,9 @@ public class BlockChanger {
             }
         }
 
-        CRAFT_BLOCK_DATA = loadClass(CRAFT_BUKKIT + "block.data.CraftBlockData");
-
         if (MINOR_VERSION != 8) {
+            CRAFT_BLOCK_DATA = loadClass(CRAFT_BUKKIT + "block.data.CraftBlockData");
+
             try {
                 GET_STATE = getMethodHandle(CRAFT_BLOCK_DATA, "getState", I_BLOCK_DATA);
                 debug("GET_STATE Loaded");
@@ -601,7 +635,11 @@ public class BlockChanger {
         }
 
         try {
-            GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "a", I_BLOCK_DATA, int.class, int.class, int.class);
+            if (supports(16)) {
+                GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "a", I_BLOCK_DATA, int.class, int.class, int.class);
+            } else {GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "getType", I_BLOCK_DATA, int.class, int.class, int.class);
+
+            }
             debug("GET_BLOCK_DATA Loaded");
         } catch (Throwable e) {
             debug("GET_BLOCK_DATA didn't load " + e.getCause().getMessage());
@@ -617,7 +655,6 @@ public class BlockChanger {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
         return lookup.findStatic(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
     }
-
 
     private static Object[] getSections(Object nmsChunk) {
         try {
@@ -701,6 +738,7 @@ public class BlockChanger {
         }
         return 0;
     }
+
     protected static Location cloneLocation(Location location) {
         return new Location(location.getWorld(), location.getX(), location.getY(), location.getZ());
     }
@@ -724,7 +762,7 @@ public class BlockChanger {
             Object nmsBlockData = blockData.blockDataNMS;
             Location location = blockData.location;
 
-            if(data.get(nmsBlockData) == null) {
+            if (data.get(nmsBlockData) == null) {
                 List<Location> e = new ArrayList<>();
                 e.add(location);
                 data.put(nmsBlockData, e);
@@ -737,6 +775,7 @@ public class BlockChanger {
     public static class BlockSnapshot {
         protected final Object blockDataNMS;
         protected Location location;
+
         /**
          * BlockChanger representation of blocks for multi version support
          * <p>
