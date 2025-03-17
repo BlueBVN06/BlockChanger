@@ -36,8 +36,4 @@ BlockChanger.Snapshot snapshot = ...;
 
 // Pasting the snapshot with an offset of X: 100 and Z: 0
 BlockChanger.paste(snapshot, 100, 0);
-
-// Paste location at that location
-Location pos = ...;
-BlockChanger.paste(snapshot, pos);
 ``` 
