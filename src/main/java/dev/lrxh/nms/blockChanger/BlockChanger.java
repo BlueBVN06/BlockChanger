@@ -20,6 +20,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author Devlrxxh
@@ -31,6 +33,7 @@ public class BlockChanger {
     private static JavaPlugin plugin;
     private static boolean debug;
     private static HashMap<String, Object> worldCache;
+    private static ExecutorService executorService;
 
     // NMS Classes
     private static Class<?> CRAFT_BLOCK_DATA;
@@ -55,6 +58,7 @@ public class BlockChanger {
         BlockChanger.MINOR_VERSION = getMinorVersion();
         BlockChanger.debug = debug;
         BlockChanger.worldCache = new HashMap<>();
+        BlockChanger.executorService = Executors.newSingleThreadExecutor();
 
         init();
     }
@@ -90,9 +94,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> setBlocksAsync(World world, Set<BlockSnapshot> blocks) {
-        return CompletableFuture.runAsync(() -> {
-            setBlocks(world, blocks);
-        });
+        return CompletableFuture.runAsync(() -> setBlocks(world, blocks), executorService);
     }
 
     /**
@@ -136,7 +138,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> setBlocksAsync(World world, Location pos1, Location pos2, Material material) {
-        return CompletableFuture.runAsync(() -> setBlocks(world, pos1, pos2, material));
+        return CompletableFuture.runAsync(() -> setBlocks(world, pos1, pos2, material), executorService);
     }
 
     /**
@@ -173,7 +175,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
-        return CompletableFuture.runAsync(() -> paste(snapshot, offsetX, offsetZ, ignoreAir));
+        return CompletableFuture.runAsync(() -> paste(snapshot, offsetX, offsetZ, ignoreAir), executorService);
     }
 
     /**
@@ -235,12 +237,13 @@ public class BlockChanger {
      * @return A CompletableFuture containing the Snapshot captured.
      */
     public static CompletableFuture<Snapshot> captureAsync(Location pos1, Location pos2, boolean ignoreAir) {
-        return CompletableFuture.supplyAsync(() -> capture(pos1, pos2, ignoreAir));
+        return CompletableFuture.supplyAsync(() -> capture(pos1, pos2, ignoreAir), executorService);
     }
 
     /**
      * Revert all changes from the snapshot.
      *
+     * @param world World to place the snapshot in
      * @param snapshot Snapshot you have captured
      */
     public static void revert(World world, Snapshot snapshot) {
@@ -259,7 +262,7 @@ public class BlockChanger {
      * @return A CompletableFuture that completes when the operation is done.
      */
     public static CompletableFuture<Void> revertAsync(World world, Snapshot snapshot) {
-        return CompletableFuture.runAsync(() -> revert(world, snapshot));
+        return CompletableFuture.runAsync(() -> revert(world, snapshot), executorService);
     }
 
     /**
@@ -332,8 +335,6 @@ public class BlockChanger {
             Chunk chunk = location.getChunk();
             Object nmsWorld = getWorldNMS(world);
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
-
-            if (blockDataNMS.equals(getNMSBlockData(chunk, world, location, chunkCache))) return;
 
             int x = (int) location.getX();
             int y = location.getBlockY();
