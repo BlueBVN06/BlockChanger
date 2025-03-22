@@ -25,15 +25,16 @@ BlockChanger. // see all available methods
 ```java
 Location pos1 = ...;
 Location pos2 = ...;
+World world = ...;
 
-BlockChanger.Snapshot snapshot = BlockChanger.capture(pos1, pos2);
+BlockChanger.Snapshot snapshot = BlockChanger.capture(pos1, pos2, true);
 
-BlockChanger.revert(snapshot);
+BlockChanger.revert(world, snapshot);
 ```
 ## Pasting System
 ```java
 BlockChanger.Snapshot snapshot = ...;
 
-// Pasting the snapshot with an offset of X: 100 and Z: 0
-BlockChanger.paste(snapshot, 100, 0);
+// Pasting the snapshot with an offset of X: 100 and Z: 0 and ignore all air blocks
+BlockChanger.paste(snapshot, 100, 0, false);
 ``` 
