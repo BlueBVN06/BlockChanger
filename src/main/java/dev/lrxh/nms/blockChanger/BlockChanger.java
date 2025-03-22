@@ -126,42 +126,6 @@ public class BlockChanger {
         refreshChunks(world, minX, minZ, maxX, maxZ);
     }
 
-    public static void loadChunks(Location pos1, Location pos2) {
-        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
-        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
-
-        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
-        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
-
-        loadChunks(pos1.getWorld(), minX, minZ, maxX, maxZ);
-    }
-
-    private static void loadChunks(World world, int minX, int minZ, int maxX, int maxZ) {
-        int chunkStartX = minX >> 4;
-        int chunkStartZ = minZ >> 4;
-        int chunkEndX = maxX >> 4;
-        int chunkEndZ = maxZ >> 4;
-
-        for (int x = chunkStartX; x <= chunkEndX; x++) {
-            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
-                world.loadChunk(x, z);
-            }
-        }
-    }
-
-    private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
-        int chunkStartX = minX >> 4;
-        int chunkStartZ = minZ >> 4;
-        int chunkEndX = maxX >> 4;
-        int chunkEndZ = maxZ >> 4;
-
-        for (int x = chunkStartX; x <= chunkEndX; x++) {
-            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
-                world.refreshChunk(x, z);
-            }
-        }
-    }
-
     /**
      * Sets blocks block-data's using NMS.
      *
@@ -225,7 +189,7 @@ public class BlockChanger {
         World world = max.getWorld();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
-        Snapshot snapshot = new Snapshot(world, pos1);
+        Snapshot snapshot = new Snapshot(world);
         int minX = Math.min(min.getBlockX(), max.getBlockX());
         int minY = Math.min(min.getBlockY(), max.getBlockY());
         int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
@@ -348,6 +312,19 @@ public class BlockChanger {
 
     private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
         setBlock(snapshot.location.getWorld(), snapshot.blockDataNMS, snapshot.location, chunkCache);
+    }
+
+    private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
+        int chunkStartX = minX >> 4;
+        int chunkStartZ = minZ >> 4;
+        int chunkEndX = maxX >> 4;
+        int chunkEndZ = maxZ >> 4;
+
+        for (int x = chunkStartX; x <= chunkEndX; x++) {
+            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
+                world.refreshChunk(x, z);
+            }
+        }
     }
 
     private static void setBlock(World world, Object blockDataNMS, Location location, HashMap<Chunk, Object> chunkCache) {
@@ -721,11 +698,9 @@ public class BlockChanger {
     public static class Snapshot {
         protected final World world;
         protected final HashMap<Object, Set<Location>> data;
-        protected final Location pos;
 
-        protected Snapshot(World world, Location pos) {
+        protected Snapshot(World world) {
             this.world = world;
-            this.pos = pos;
             this.data = new HashMap<>();
         }
 
