@@ -13,11 +13,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.*;
-import java.util.ArrayList;
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -62,9 +63,9 @@ public class BlockChanger {
      * Sets blocks block-data's using NMS.
      *
      * @param world  World to set block in.
-     * @param blocks Map of locations and ItemStacks to be set
+     * @param blocks Set of locations and ItemStacks to be set
      */
-    public static void setBlocks(World world, List<BlockSnapshot> blocks) {
+    public static void setBlocks(World world, Set<BlockSnapshot> blocks) {
         long startTime = System.currentTimeMillis();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
@@ -85,10 +86,10 @@ public class BlockChanger {
      * Sets blocks block-data's using NMS.
      *
      * @param world  World to set block in.
-     * @param blocks Map of locations and ItemStacks to be set
+     * @param blocks Set of locations and ItemStacks to be set
      * @return A CompletableFuture that completes when the operation is done.
      */
-    public static CompletableFuture<Void> setBlocksAsync(World world, List<BlockSnapshot> blocks) {
+    public static CompletableFuture<Void> setBlocksAsync(World world, Set<BlockSnapshot> blocks) {
         return CompletableFuture.runAsync(() -> {
             setBlocks(world, blocks);
         });
@@ -182,11 +183,11 @@ public class BlockChanger {
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
      */
     public static void paste(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
-        HashMap<Object, List<Location>> data = new HashMap<>();
+        HashMap<Object, Set<Location>> data = new HashMap<>();
 
-        for (Map.Entry<Object, List<Location>> entry : snapshot.data.entrySet()) {
+        for (Map.Entry<Object, Set<Location>> entry : snapshot.data.entrySet()) {
             if (ignoreAir) if (entry.getKey().toString().toLowerCase().contains("air")) continue;
-            List<Location> locations = new ArrayList<>();
+            Set<Location> locations = new HashSet<>();
 
             data.put(entry.getKey(), locations);
 
@@ -257,7 +258,7 @@ public class BlockChanger {
             }
         }
 
-        debug("Captured Snapshot");
+        debug("Captured Snapshot: " + snapshot.data.size());
         return snapshot;
     }
 
@@ -311,20 +312,26 @@ public class BlockChanger {
         return itemStack;
     }
 
-    public static ItemStack fromBlock(BlockState block) {
-        ItemStack itemStack = new ItemStack(block.getType());
+    /**
+     * Turn a BlockState into and ItemStack.
+     *
+     * @param blockState BlockState to be turned into an ItemStack
+     * @return ItemStack
+     */
+    public static ItemStack fromBlock(BlockState blockState) {
+        ItemStack itemStack = new ItemStack(blockState.getType());
         if (MINOR_VERSION == 8) {
-            itemStack.setData(block.getData());
+            itemStack.setData(blockState.getData());
         }
 
         return itemStack;
     }
 
-    private static void setBlocks(World world, HashMap<Object, List<Location>> data) {
+    private static void setBlocks(World world, HashMap<Object, Set<Location>> data) {
         long startTime = System.currentTimeMillis();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
-        for (Map.Entry<Object, List<Location>> entry : data.entrySet()) {
+        for (Map.Entry<Object, Set<Location>> entry : data.entrySet()) {
             for (Location location : entry.getValue()) {
                 setBlock(world, entry.getKey(), location, chunkCache);
             }
@@ -637,7 +644,8 @@ public class BlockChanger {
         try {
             if (supports(16)) {
                 GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "a", I_BLOCK_DATA, int.class, int.class, int.class);
-            } else {GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "getType", I_BLOCK_DATA, int.class, int.class, int.class);
+            } else {
+                GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "getType", I_BLOCK_DATA, int.class, int.class, int.class);
 
             }
             debug("GET_BLOCK_DATA Loaded");
@@ -675,17 +683,6 @@ public class BlockChanger {
         return null;
     }
 
-    private static Field getDeclaredField(Class<?> clazz, String fieldName) {
-        try {
-            Field field = clazz.getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return field;
-        } catch (NoSuchFieldException e) {
-            debug("Error occurred while at #getDeclaredField(Class<?>, String) " + e.getMessage());
-        }
-        return null;
-    }
-
     private static Constructor<?> getConstructor(Class<?> clazz, Class<?>... parameterTypes) {
         try {
             Constructor<?> constructor = clazz.getDeclaredConstructor(parameterTypes);
@@ -695,36 +692,6 @@ public class BlockChanger {
             debug("Error occurred while at invokeConstructor: " + e.getMessage());
         }
         return null;
-    }
-
-    private static void printAllMethods(Class<?> clazz) {
-        Method[] methods = clazz.getDeclaredMethods();
-        for (Method method : methods) {
-            System.out.print("Method: " + method.getName());
-            System.out.print(" | Return type: " + method.getReturnType().getSimpleName());
-            System.out.print(" | Modifiers: " + Modifier.toString(method.getModifiers()));
-            System.out.print(" | Parameters: ");
-            Parameter[] parameters = method.getParameters();
-            if (parameters.length == 0) {
-                System.out.print("None");
-            } else {
-                for (Parameter param : parameters) {
-                    System.out.print(param.getType().getSimpleName() + " " + param.getName() + ", ");
-                }
-                System.out.print("\b\b");
-            }
-            System.out.println();
-        }
-    }
-
-    private static void printAllFields(Class<?> clazz) {
-        Field[] fields = clazz.getDeclaredFields();
-        for (Field field : fields) {
-            System.out.print("Field: " + field.getName());
-            System.out.print(" | Type: " + field.getType().getSimpleName());
-            System.out.print(" | Modifiers: " + Modifier.toString(field.getModifiers()));
-            System.out.println();
-        }
     }
 
     private static boolean supports(int version) {
@@ -749,7 +716,7 @@ public class BlockChanger {
 
     public static class Snapshot {
         protected final World world;
-        protected final HashMap<Object, List<Location>> data;
+        protected final HashMap<Object, Set<Location>> data;
         protected final Location pos;
 
         protected Snapshot(World world, Location pos) {
@@ -763,7 +730,7 @@ public class BlockChanger {
             Location location = blockData.location;
 
             if (data.get(nmsBlockData) == null) {
-                List<Location> e = new ArrayList<>();
+                Set<Location> e = new HashSet<>();
                 e.add(location);
                 data.put(nmsBlockData, e);
             } else {
