@@ -186,7 +186,7 @@ public class BlockChanger {
         HashMap<Object, Set<Location>> data = new HashMap<>();
 
         for (Map.Entry<Object, Set<Location>> entry : snapshot.data.entrySet()) {
-            if (ignoreAir) if (entry.getKey().toString().toLowerCase().contains("air")) continue;
+            if (ignoreAir && isAir(entry.getKey())) continue;
             Set<Location> locations = new HashSet<>();
 
             data.put(entry.getKey(), locations);
@@ -248,12 +248,13 @@ public class BlockChanger {
                         for (int y = yStart; y <= yEnd; y++) {
                             for (int z = zStart; z <= zEnd; z++) {
                                 Location location = new Location(world, x, y, z);
-                                snapshot.add(new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache)));
+                                BlockSnapshot blockData = new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache));
+                                if (ignoreAir && blockData.isAir()) continue;
+
+                                snapshot.add(blockData);
                             }
                         }
                     }
-
-                    System.gc();
                 }
             }
         }
@@ -642,12 +643,7 @@ public class BlockChanger {
         }
 
         try {
-            if (supports(16)) {
-                GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "a", I_BLOCK_DATA, int.class, int.class, int.class);
-            } else {
-                GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, "getType", I_BLOCK_DATA, int.class, int.class, int.class);
-
-            }
+            GET_BLOCK_DATA = getMethodHandle(CHUNK_SECTION, supports(16) ? "a" : "getType", I_BLOCK_DATA, int.class, int.class, int.class);
             debug("GET_BLOCK_DATA Loaded");
         } catch (Throwable e) {
             debug("GET_BLOCK_DATA didn't load " + e.getCause().getMessage());
@@ -714,6 +710,14 @@ public class BlockChanger {
         if (debug) plugin.getLogger().info(message);
     }
 
+    protected static boolean isAir(Object blockData) {
+        String name = blockData.toString().toLowerCase();
+        if (name.contains("stair")) return false;
+        if (name.contains("water")) return false;
+        if (name.contains("wood")) return false;
+        return name.contains("air");
+    }
+
     public static class Snapshot {
         protected final World world;
         protected final HashMap<Object, Set<Location>> data;
@@ -770,7 +774,7 @@ public class BlockChanger {
                 try {
                     dataNMS = GET_COMBINED_ID.invoke(itemStack.getType().getId() + (itemStack.getData().getData() << 12));
                 } catch (Throwable throwable) {
-                    System.err.println("Error initializing blockDataNMS: " + throwable.getMessage());
+                    debug("Error initializing blockDataNMS: " + throwable.getMessage());
                 }
                 this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
             } else {
@@ -793,7 +797,7 @@ public class BlockChanger {
                 try {
                     dataNMS = GET_COMBINED_ID.invoke(itemStack.getType().getId() + (itemStack.getData().getData() << 12));
                 } catch (Throwable throwable) {
-                    System.err.println("Error initializing blockDataNMS: " + throwable.getMessage());
+                    debug("Error initializing blockDataNMS: " + throwable.getMessage());
                 }
                 this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
                 this.location = location;
@@ -805,6 +809,10 @@ public class BlockChanger {
         protected BlockSnapshot(Location location, Object blockDataNMS) {
             this.location = location;
             this.blockDataNMS = blockDataNMS;
+        }
+
+        public boolean isAir() {
+            return BlockChanger.isAir(blockDataNMS);
         }
     }
 }
