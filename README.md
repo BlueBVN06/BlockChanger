@@ -36,5 +36,5 @@ BlockChanger.revert(world, snapshot);
 BlockChanger.Snapshot snapshot = ...;
 
 // Pasting the snapshot with an offset of X: 100 and Z: 0 and ignore all air blocks
-BlockChanger.paste(snapshot, 100, 0, false);
+BlockChanger.paste(snapshot, 100, 0, true);
 ``` 
