@@ -25,9 +25,10 @@ import java.util.concurrent.Executors;
 
 /**
  * @author Devlrxxh
- * @apiNote 1.8 - 1.21.4 easy to use util to be able to
+ * @apiNote 1.8 - 1.21 easy to use util to be able to
  * set blocks blazingly fast
  */
+@SuppressWarnings({"unused", "deprecation"})
 public class BlockChanger {
     private static int MINOR_VERSION;
     private static JavaPlugin plugin;
@@ -243,7 +244,7 @@ public class BlockChanger {
     /**
      * Revert all changes from the snapshot.
      *
-     * @param world World to place the snapshot in
+     * @param world    World to place the snapshot in
      * @param snapshot Snapshot you have captured
      */
     public static void revert(World world, Snapshot snapshot) {
@@ -345,7 +346,7 @@ public class BlockChanger {
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, blockDataNMS);
         } catch (Throwable e) {
-            debug("Error occurred while at #setBlock(BlockSnapshot, HashMap) " + e.getMessage());
+            debug("Error occurred while at #setBlock(World, Object, Location, HashMap) " + e.getMessage());
         }
     }
 
@@ -452,6 +453,43 @@ public class BlockChanger {
         }
 
         return null;
+    }
+
+    private static boolean isAir(Object blockData) {
+        String name = blockData.toString().toLowerCase();
+        if (name.contains("stair")) return false;
+        if (name.contains("water")) return false;
+        if (name.contains("wood")) return false;
+        return name.contains("air");
+    }
+
+    private static Object[] getSections(Object nmsChunk) {
+        try {
+            return (Object[]) GET_SECTIONS.invoke(nmsChunk);
+        } catch (Throwable e) {
+            debug("Error occurred while at #getSections(Object) " + e.getMessage());
+        }
+        return new Object[0];
+    }
+
+    private static boolean supports(int version) {
+        return MINOR_VERSION >= version;
+    }
+
+    private static int getMinorVersion() {
+        String[] versionParts = plugin.getServer().getBukkitVersion().split("-")[0].split("\\.");
+        if (versionParts.length >= 2) {
+            return Integer.parseInt(versionParts[1]);
+        }
+        return 0;
+    }
+
+    protected static Location cloneLocation(Location location) {
+        return new Location(location.getWorld(), location.getX(), location.getY(), location.getZ());
+    }
+
+    private static void debug(String message) {
+        if (debug) plugin.getLogger().info(message);
     }
 
     private static void init() {
@@ -628,23 +666,15 @@ public class BlockChanger {
         }
     }
 
-    private static MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
+    private static MethodHandle getMethodHandle(Class<?> clazz, String methodName, Class<?> type, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
-        return lookup.findVirtual(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
+        return lookup.findVirtual(clazz, methodName, MethodType.methodType(type, parameterTypes));
     }
 
+    @SuppressWarnings("all")
     private static MethodHandle getMethodHandleStatic(Class<?> clazz, String methodName, Class<?> rtype, Class<?>... parameterTypes) throws NoSuchMethodException, IllegalAccessException {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
         return lookup.findStatic(clazz, methodName, MethodType.methodType(rtype, parameterTypes));
-    }
-
-    private static Object[] getSections(Object nmsChunk) {
-        try {
-            return (Object[]) GET_SECTIONS.invoke(nmsChunk);
-        } catch (Throwable e) {
-            debug("Error occurred while at #getSections(Object) " + e.getMessage());
-        }
-        return new Object[0];
     }
 
     private static Class<?> loadClass(String className) {
@@ -668,34 +698,11 @@ public class BlockChanger {
         return null;
     }
 
-    private static boolean supports(int version) {
-        return MINOR_VERSION >= version;
-    }
-
-    private static int getMinorVersion() {
-        String[] versionParts = plugin.getServer().getBukkitVersion().split("-")[0].split("\\.");
-        if (versionParts.length >= 2) {
-            return Integer.parseInt(versionParts[1]);
-        }
-        return 0;
-    }
-
-    protected static Location cloneLocation(Location location) {
-        return new Location(location.getWorld(), location.getX(), location.getY(), location.getZ());
-    }
-
-    private static void debug(String message) {
-        if (debug) plugin.getLogger().info(message);
-    }
-
-    protected static boolean isAir(Object blockData) {
-        String name = blockData.toString().toLowerCase();
-        if (name.contains("stair")) return false;
-        if (name.contains("water")) return false;
-        if (name.contains("wood")) return false;
-        return name.contains("air");
-    }
-
+    /**
+     * Snapshots contains all captured block data which can later be used to paste or revert.
+     *
+     * @see BlockChanger#capture(Location, Location, boolean)
+     */
     public static class Snapshot {
         protected final World world;
         protected final HashMap<Object, Set<Location>> data;
@@ -719,6 +726,10 @@ public class BlockChanger {
         }
     }
 
+    /**
+     * BlockChanger representation of blocks for multi version support
+     */
+    @SuppressWarnings("all")
     public static class BlockSnapshot {
         protected final Object blockDataNMS;
         protected Location location;
