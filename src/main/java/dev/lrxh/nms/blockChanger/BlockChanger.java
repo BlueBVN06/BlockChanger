@@ -105,6 +105,7 @@ public class BlockChanger {
      * @param pos1     Position 1
      * @param pos2     Position 2
      * @param material Material to fill all blocks between pos1 and pos2
+     * @see BlockChanger#loadChunks(Location, Location);
      */
     public static void setBlocks(World world, Location pos1, Location pos2, Material material) {
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
@@ -137,6 +138,7 @@ public class BlockChanger {
      * @param pos2     Position 2
      * @param material Material to fill all blocks between pos1 and pos2
      * @return A CompletableFuture that completes when the operation is done.
+     * @see BlockChanger#loadChunks(Location, Location);
      */
     public static CompletableFuture<Void> setBlocksAsync(World world, Location pos1, Location pos2, Material material) {
         return CompletableFuture.runAsync(() -> setBlocks(world, pos1, pos2, material), executorService);
@@ -148,6 +150,7 @@ public class BlockChanger {
      * @param snapshot Captured Snapshot.
      * @param offsetX  The offset to apply to the X coordinate of each block.
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
+     * @see BlockChanger#loadChunks(Snapshot);
      */
     public static void paste(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
         HashMap<Object, Set<Location>> data = new HashMap<>();
@@ -174,6 +177,7 @@ public class BlockChanger {
      * @param offsetX  The offset to apply to the X coordinate of each block.
      * @param offsetZ  The offset to apply to the Z coordinate of each block.
      * @return A CompletableFuture that completes when the operation is done.
+     * @see BlockChanger#loadChunks(Snapshot);
      */
     public static CompletableFuture<Void> pasteAsync(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
         return CompletableFuture.runAsync(() -> paste(snapshot, offsetX, offsetZ, ignoreAir), executorService);
@@ -185,6 +189,7 @@ public class BlockChanger {
      * @param pos1 Position 1
      * @param pos2 Position 2
      * @return Snapshot captured snapshot
+     * @see BlockChanger#loadChunks(Location, Location);
      */
     public static Snapshot capture(Location pos1, Location pos2, boolean ignoreAir) {
         Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
@@ -192,7 +197,7 @@ public class BlockChanger {
         World world = max.getWorld();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
-        Snapshot snapshot = new Snapshot(world);
+        Snapshot snapshot = new Snapshot(world, pos1, pos2);
         int minX = Math.min(min.getBlockX(), max.getBlockX());
         int minY = Math.min(min.getBlockY(), max.getBlockY());
         int minZ = Math.min(min.getBlockZ(), max.getBlockZ());
@@ -236,6 +241,7 @@ public class BlockChanger {
      * @param pos1 Position 1
      * @param pos2 Position 2
      * @return A CompletableFuture containing the Snapshot captured.
+     * @see BlockChanger#loadChunks(Location, Location);
      */
     public static CompletableFuture<Snapshot> captureAsync(Location pos1, Location pos2, boolean ignoreAir) {
         return CompletableFuture.supplyAsync(() -> capture(pos1, pos2, ignoreAir), executorService);
@@ -246,6 +252,7 @@ public class BlockChanger {
      *
      * @param world    World to place the snapshot in
      * @param snapshot Snapshot you have captured
+     * @see BlockChanger#loadChunks(Snapshot);
      */
     public static void revert(World world, Snapshot snapshot) {
         long startTime = System.currentTimeMillis();
@@ -264,6 +271,41 @@ public class BlockChanger {
      */
     public static CompletableFuture<Void> revertAsync(World world, Snapshot snapshot) {
         return CompletableFuture.runAsync(() -> revert(world, snapshot), executorService);
+    }
+
+    /**
+     * Load all chunks between 2 positions
+     *
+     * @param snapshot Snapshot to load all chunks for.
+     */
+    public static void loadChunks(Snapshot snapshot) {
+        loadChunks(snapshot.pos1, snapshot.pos2);
+    }
+
+    /**
+     * Load all chunks between 2 positions
+     *
+     * @param pos1 Position 1
+     * @param pos2 Position 2
+     */
+    public static void loadChunks(Location pos1, Location pos2) {
+        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
+        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
+
+        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
+        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
+
+        int chunkStartX = minX >> 4;
+        int chunkStartZ = minZ >> 4;
+        int chunkEndX = maxX >> 4;
+        int chunkEndZ = maxZ >> 4;
+        World world = pos1.getWorld();
+
+        for (int x = chunkStartX; x <= chunkEndX; x++) {
+            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
+                world.loadChunk(x, z);
+            }
+        }
     }
 
     /**
@@ -706,9 +748,12 @@ public class BlockChanger {
     public static class Snapshot {
         protected final World world;
         protected final HashMap<Object, Set<Location>> data;
+        protected final Location pos1, pos2;
 
-        protected Snapshot(World world) {
+        protected Snapshot(World world, Location pos1, Location pos2) {
             this.world = world;
+            this.pos1 = pos1;
+            this.pos2 = pos2;
             this.data = new HashMap<>();
         }
 
