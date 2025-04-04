@@ -347,19 +347,6 @@ public class BlockChanger {
         setBlock(world, snapshot.blockDataNMS, snapshot.location, chunkCache);
     }
 
-    private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
-        int chunkStartX = minX >> 4;
-        int chunkStartZ = minZ >> 4;
-        int chunkEndX = maxX >> 4;
-        int chunkEndZ = maxZ >> 4;
-
-        for (int x = chunkStartX; x <= chunkEndX; x++) {
-            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
-                world.refreshChunk(x, z);
-            }
-        }
-    }
-
     private static void setBlock(World world, Object blockDataNMS, BlockLocation location, HashMap<Chunk, Object> chunkCache) {
         try {
             Chunk chunk = world.getChunkAt(location.x, location.z);
@@ -376,6 +363,19 @@ public class BlockChanger {
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, blockDataNMS);
         } catch (Throwable e) {
             debug("Error occurred while at #setBlock(World, Object, Location, HashMap) " + e.getMessage());
+        }
+    }
+
+    private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
+        int chunkStartX = minX >> 4;
+        int chunkStartZ = minZ >> 4;
+        int chunkEndX = maxX >> 4;
+        int chunkEndZ = maxZ >> 4;
+
+        for (int x = chunkStartX; x <= chunkEndX; x++) {
+            for (int z = chunkStartZ; z <= chunkEndZ; z++) {
+                world.refreshChunk(x, z);
+            }
         }
     }
 
@@ -849,7 +849,7 @@ public class BlockChanger {
         }
 
         protected static BlockLocation fromLocation(Location location) {
-            return new BlockLocation((int) location.getX(), (int) location.getY(), (int) location.getZ());
+            return new BlockLocation(location.getBlockX(), location.getBlockY(), location.getBlockZ());
         }
     }
 }
