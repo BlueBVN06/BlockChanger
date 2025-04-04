@@ -1,4 +1,4 @@
-package dev.lrxh.nms.blockChanger;
+package dev.lrxh.blockChanger;
 
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -75,7 +75,7 @@ public class BlockChanger {
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
         for (BlockSnapshot block : blocks) {
-            setBlock(block, chunkCache);
+            setBlock(world, block, chunkCache);
         }
 
         for (Chunk chunk : chunkCache.keySet()) {
@@ -122,7 +122,7 @@ public class BlockChanger {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     Location location = new Location(world, x, y, z);
-                    setBlock(new BlockSnapshot(location, material), chunkCache);
+                    setBlock(world, new BlockSnapshot(location, material), chunkCache);
                 }
             }
         }
@@ -153,16 +153,16 @@ public class BlockChanger {
      * @see BlockChanger#loadChunks(Snapshot);
      */
     public static void paste(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
-        HashMap<Object, Set<Location>> data = new HashMap<>();
+        HashMap<Object, Set<BlockLocation>> data = new HashMap<>();
 
-        for (Map.Entry<Object, Set<Location>> entry : snapshot.data.entrySet()) {
+        for (Map.Entry<Object, Set<BlockLocation>> entry : snapshot.data.entrySet()) {
             if (ignoreAir && isAir(entry.getKey())) continue;
-            Set<Location> locations = new HashSet<>();
+            Set<BlockLocation> locations = new HashSet<>();
 
             data.put(entry.getKey(), locations);
 
-            for (Location location : entry.getValue()) {
-                data.get(entry.getKey()).add(cloneLocation(location).add(offsetX, 0, offsetZ));
+            for (BlockLocation location : entry.getValue()) {
+                data.get(entry.getKey()).add(location.add(offsetX, 0, offsetZ));
             }
 
         }
@@ -338,12 +338,12 @@ public class BlockChanger {
         return itemStack;
     }
 
-    private static void setBlocks(World world, HashMap<Object, Set<Location>> data) {
+    private static void setBlocks(World world, HashMap<Object, Set<BlockLocation>> data) {
         long startTime = System.currentTimeMillis();
         HashMap<Chunk, Object> chunkCache = new HashMap<>();
 
-        for (Map.Entry<Object, Set<Location>> entry : data.entrySet()) {
-            for (Location location : entry.getValue()) {
+        for (Map.Entry<Object, Set<BlockLocation>> entry : data.entrySet()) {
+            for (BlockLocation location : entry.getValue()) {
                 setBlock(world, entry.getKey(), location, chunkCache);
             }
         }
@@ -356,8 +356,8 @@ public class BlockChanger {
         debug("Pasted blocks time: " + duration + " ms");
     }
 
-    private static void setBlock(BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
-        setBlock(snapshot.location.getWorld(), snapshot.blockDataNMS, snapshot.location, chunkCache);
+    private static void setBlock(World world, BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
+        setBlock(world, snapshot.blockDataNMS, snapshot.location, chunkCache);
     }
 
     private static void refreshChunks(World world, int minX, int minZ, int maxX, int maxZ) {
@@ -373,15 +373,15 @@ public class BlockChanger {
         }
     }
 
-    private static void setBlock(World world, Object blockDataNMS, Location location, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(World world, Object blockDataNMS, BlockLocation location, HashMap<Chunk, Object> chunkCache) {
         try {
-            Chunk chunk = location.getChunk();
+            Chunk chunk = world.getChunkAt(location.x, location.z);
             Object nmsWorld = getWorldNMS(world);
             Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
 
-            int x = (int) location.getX();
-            int y = location.getBlockY();
-            int z = (int) location.getZ();
+            int x = location.x;
+            int y = location.y;
+            int z = location.z;
 
             Object cs = getSection(nmsChunk, y);
             if (cs == null) return;
@@ -524,10 +524,6 @@ public class BlockChanger {
             return Integer.parseInt(versionParts[1]);
         }
         return 0;
-    }
-
-    protected static Location cloneLocation(Location location) {
-        return new Location(location.getWorld(), location.getX(), location.getY(), location.getZ());
     }
 
     private static void debug(String message) {
@@ -747,7 +743,7 @@ public class BlockChanger {
      */
     public static class Snapshot {
         protected final World world;
-        protected final HashMap<Object, Set<Location>> data;
+        protected final HashMap<Object, Set<BlockLocation>> data;
         protected final Location pos1, pos2;
 
         protected Snapshot(World world, Location pos1, Location pos2) {
@@ -759,10 +755,10 @@ public class BlockChanger {
 
         protected void add(BlockSnapshot blockData) {
             Object nmsBlockData = blockData.blockDataNMS;
-            Location location = blockData.location;
+            BlockLocation location = blockData.location;
 
             if (data.get(nmsBlockData) == null) {
-                Set<Location> e = new HashSet<>();
+                Set<BlockLocation> e = new HashSet<>();
                 e.add(location);
                 data.put(nmsBlockData, e);
             } else {
@@ -777,7 +773,7 @@ public class BlockChanger {
     @SuppressWarnings("all")
     public static class BlockSnapshot {
         protected final Object blockDataNMS;
-        protected Location location;
+        protected BlockLocation location;
 
         /**
          * BlockChanger representation of blocks for multi version support
@@ -788,7 +784,7 @@ public class BlockChanger {
          */
         public BlockSnapshot(Location location, BlockData blockData) {
             this.blockDataNMS = getBlockDataNMS(blockData);
-            this.location = location;
+            this.location = BlockLocation.fromLocation(location);
         }
 
         /**
@@ -813,7 +809,7 @@ public class BlockChanger {
                 this.blockDataNMS = getBlockDataNMS(material.createBlockData());
             }
 
-            this.location = location;
+            this.location = BlockLocation.fromLocation(location);
         }
 
         /**
@@ -832,19 +828,41 @@ public class BlockChanger {
                     debug("Error initializing blockDataNMS: " + throwable.getMessage());
                 }
                 this.blockDataNMS = dataNMS != null ? dataNMS : new Object();
-                this.location = location;
+                this.location = BlockLocation.fromLocation(location);
             } else {
                 this.blockDataNMS = getBlockDataNMS(itemStack.getType().createBlockData());
             }
         }
 
         protected BlockSnapshot(Location location, Object blockDataNMS) {
-            this.location = location;
+            this.location = BlockLocation.fromLocation(location);
             this.blockDataNMS = blockDataNMS;
         }
 
         public boolean isAir() {
             return BlockChanger.isAir(blockDataNMS);
+        }
+    }
+
+    protected static class BlockLocation {
+        protected int x, y, z;
+
+        protected BlockLocation(int x, int y, int z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        protected BlockLocation add(int x, int y, int z) {
+            this.x += x;
+            this.y += y;
+            this.z += z;
+
+            return this;
+        }
+
+        protected static BlockLocation fromLocation(Location location) {
+            return new BlockLocation((int) location.getX(), (int) location.getY(), (int) location.getZ());
         }
     }
 }
