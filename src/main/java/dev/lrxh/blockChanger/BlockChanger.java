@@ -206,27 +206,14 @@ public class BlockChanger {
         int maxY = Math.max(min.getBlockY(), max.getBlockY());
         int maxZ = Math.max(min.getBlockZ(), max.getBlockZ());
 
-        int chunkSize = 100;
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Location location = new Location(world, x, y, z);
+                    BlockSnapshot blockData = new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache));
+                    if (ignoreAir && blockData.isAir()) continue;
 
-        for (int xStart = minX; xStart <= maxX; xStart += chunkSize) {
-            for (int yStart = minY; yStart <= maxY; yStart += chunkSize) {
-                for (int zStart = minZ; zStart <= maxZ; zStart += chunkSize) {
-
-                    int xEnd = Math.min(xStart + chunkSize - 1, maxX);
-                    int yEnd = Math.min(yStart + chunkSize - 1, maxY);
-                    int zEnd = Math.min(zStart + chunkSize - 1, maxZ);
-
-                    for (int x = xStart; x <= xEnd; x++) {
-                        for (int y = yStart; y <= yEnd; y++) {
-                            for (int z = zStart; z <= zEnd; z++) {
-                                Location location = new Location(world, x, y, z);
-                                BlockSnapshot blockData = new BlockSnapshot(location, getNMSBlockData(location.getChunk(), world, location, chunkCache));
-                                if (ignoreAir && blockData.isAir()) continue;
-
-                                snapshot.add(blockData);
-                            }
-                        }
-                    }
+                    snapshot.add(blockData);
                 }
             }
         }
