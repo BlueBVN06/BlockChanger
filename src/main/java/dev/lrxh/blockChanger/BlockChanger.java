@@ -369,7 +369,6 @@ public class BlockChanger {
             int z = location.z();
 
             Object cs = getSection(nmsChunk, y);
-            if (cs == null) return;
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, blockDataNMS);
         } catch (Throwable e) {
@@ -479,6 +478,23 @@ public class BlockChanger {
             int x = (int) location.getX();
             int y = location.getBlockY();
             int z = (int) location.getZ();
+
+            Object cs = getSection(nmsChunk, y);
+            if (cs == null) return null;
+
+            return GET_BLOCK_DATA.invoke(cs, x & 15, y & 15, z & 15);
+        } catch (Throwable e) {
+            debug("Error occurred while at #getNMSBlockData(Chunk, World, Location, HashMap) " + e.getMessage());
+        }
+
+        return null;
+    }
+
+    private static Object getNMSBlockData(Object nmsChunk, World world, BlockLocation location, HashMap<Long, Object> chunkCache) {
+        try {
+            int x = location.x();
+            int y = location.y();
+            int z = location.z();
 
             Object cs = getSection(nmsChunk, y);
             if (cs == null) return null;
