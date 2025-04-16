@@ -70,16 +70,19 @@ public class BlockChanger {
      * @param world  World to set block in.
      * @param blocks Set of locations and ItemStacks to be set
      */
-    public static void setBlocks(World world, Set<BlockSnapshot> blocks) {
+    private static void setBlocks(World world, Set<BlockSnapshot> blocks) {
         long startTime = System.currentTimeMillis();
-        HashMap<Chunk, Object> chunkCache = new HashMap<>();
+        HashMap<Long, Object> chunkCache = new HashMap<>();
 
         for (BlockSnapshot block : blocks) {
             setBlock(world, block, chunkCache);
         }
 
-        for (Chunk chunk : chunkCache.keySet()) {
-            world.refreshChunk(chunk.getX(), chunk.getZ());
+        Set<Long> chunkKeys = chunkCache.keySet();
+        for (long chunkKey : chunkKeys) {
+            int chunkX = (int)(chunkKey >> 32);
+            int chunkZ = (int)chunkKey;
+            world.refreshChunk(chunkX, chunkZ);
         }
 
         long endTime = System.currentTimeMillis();
@@ -101,14 +104,14 @@ public class BlockChanger {
     /**
      * Sets blocks block-data's using NMS.
      *
-     * @param world    World to set block in.
      * @param pos1     Position 1
      * @param pos2     Position 2
      * @param material Material to fill all blocks between pos1 and pos2
      * @see BlockChanger#loadChunks(Location, Location);
      */
-    public static void setBlocks(World world, Location pos1, Location pos2, Material material) {
-        HashMap<Chunk, Object> chunkCache = new HashMap<>();
+    public static void setBlocks(Location pos1, Location pos2, Material material) {
+        World world = pos1.getWorld();
+        HashMap<Long, Object> chunkCache = new HashMap<>();
 
         int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
         int minY = Math.min(pos1.getBlockY(), pos2.getBlockY());
@@ -133,15 +136,14 @@ public class BlockChanger {
     /**
      * Sets blocks block-data's using NMS.
      *
-     * @param world    World to set block in.
      * @param pos1     Position 1
      * @param pos2     Position 2
      * @param material Material to fill all blocks between pos1 and pos2
      * @return A CompletableFuture that completes when the operation is done.
      * @see BlockChanger#loadChunks(Location, Location);
      */
-    public static CompletableFuture<Void> setBlocksAsync(World world, Location pos1, Location pos2, Material material) {
-        return CompletableFuture.runAsync(() -> setBlocks(world, pos1, pos2, material), executorService);
+    public static CompletableFuture<Void> setBlocksAsync(Location pos1, Location pos2, Material material) {
+        return CompletableFuture.runAsync(() -> setBlocks(pos1, pos2, material), executorService);
     }
 
     /**
@@ -192,10 +194,18 @@ public class BlockChanger {
      * @see BlockChanger#loadChunks(Location, Location);
      */
     public static Snapshot capture(Location pos1, Location pos2, boolean ignoreAir) {
+        if (pos1 == null) {
+            throw new IllegalArgumentException("pos1 must not be null");
+        }
+
+        if (pos2 == null) {
+            throw new IllegalArgumentException("pos2 must not be null");
+        }
+
         Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
         World world = max.getWorld();
-        HashMap<Chunk, Object> chunkCache = new HashMap<>();
+        HashMap<Long, Object> chunkCache = new HashMap<>();
 
         Snapshot snapshot = new Snapshot(world, pos1, pos2);
         int minX = Math.min(min.getBlockX(), max.getBlockX());
@@ -327,7 +337,7 @@ public class BlockChanger {
 
     private static void setBlocks(World world, HashMap<Object, Set<BlockLocation>> data) {
         long startTime = System.currentTimeMillis();
-        HashMap<Chunk, Object> chunkCache = new HashMap<>();
+        HashMap<Long, Object> chunkCache = new HashMap<>();
 
         for (Map.Entry<Object, Set<BlockLocation>> entry : data.entrySet()) {
             for (BlockLocation location : entry.getValue()) {
@@ -335,23 +345,35 @@ public class BlockChanger {
             }
         }
 
-        for (Chunk chunk : chunkCache.keySet()) {
-            world.refreshChunk(chunk.getX(), chunk.getZ());
+        for (long chunkKey : chunkCache.keySet()) {
+            int chunkX = (int)(chunkKey >> 32);
+            int chunkZ = (int)chunkKey;
+            world.refreshChunk(chunkX, chunkZ);
         }
+
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
         debug("Pasted blocks time: " + duration + " ms");
     }
 
-    private static void setBlock(World world, BlockSnapshot snapshot, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(World world, BlockSnapshot snapshot, HashMap<Long, Object> chunkCache) {
         setBlock(world, snapshot.blockDataNMS, snapshot.location, chunkCache);
     }
 
-    private static void setBlock(World world, Object blockDataNMS, BlockLocation location, HashMap<Chunk, Object> chunkCache) {
+    private static void setBlock(World world, Object blockDataNMS, BlockLocation location, HashMap<Long, Object> chunkCache) {
         try {
-            Chunk chunk = world.getChunkAt(location.x, location.z);
+            int chunkX = location.x >> 4;
+            int chunkZ = location.z >> 4;
+            long chunkKey = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+
             Object nmsWorld = getWorldNMS(world);
-            Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
+            Object nmsChunk = chunkCache.get(chunkKey);
+
+            if (nmsChunk == null) {
+                Chunk chunk = world.getChunkAt(chunkX, chunkZ);
+                nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
+                chunkCache.put(chunkKey, nmsChunk);
+            }
 
             int x = location.x;
             int y = location.y;
@@ -399,15 +421,17 @@ public class BlockChanger {
         return null;
     }
 
-    private static Object getChunkNMS(Object world, Chunk chunk, HashMap<Chunk, Object> chunkCache) {
-        Object c = chunkCache.get(chunk);
-        if (c != null) return c;
+    private static Object getChunkNMS(Object world, Chunk chunk, HashMap<Long, Object> chunkCache) {
+        int chunkX = chunk.getX();
+        int chunkZ = chunk.getZ();
+        long chunkKey = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+
+        Object cached = chunkCache.get(chunkKey);
+        if (cached != null) return cached;
 
         try {
-            Object nmsChunk = GET_CHUNK_AT.invoke(world, chunk.getX(), chunk.getZ());
-
-            chunkCache.put(chunk, nmsChunk);
-
+            Object nmsChunk = GET_CHUNK_AT.invoke(world, chunkX, chunkZ);
+            chunkCache.put(chunkKey, nmsChunk);
             return nmsChunk;
         } catch (Throwable e) {
             debug("Error occurred while at #getChunkNMS(Object, Chunk, HashMap) " + e.getMessage());
@@ -464,10 +488,19 @@ public class BlockChanger {
         }
     }
 
-    private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Chunk, Object> chunkCache) {
+    private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Long, Object> chunkCache) {
         try {
+            int chunkX = location.getBlockX() >> 4;
+            int chunkZ = location.getBlockZ() >> 4;
+            long chunkKey = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+
             Object nmsWorld = getWorldNMS(world);
-            Object nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
+            Object nmsChunk = chunkCache.get(chunkKey);
+
+            if (nmsChunk == null) {
+                nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
+                chunkCache.put(chunkKey, nmsChunk);
+            }
 
             int x = (int) location.getX();
             int y = location.getBlockY();
@@ -840,6 +873,11 @@ public class BlockChanger {
             this.z = z;
         }
 
+        protected static BlockLocation fromLocation(Location location) {
+            return new BlockLocation(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        }
+
+        @SuppressWarnings("all")
         protected BlockLocation add(int x, int y, int z) {
             this.x += x;
             this.y += y;
@@ -848,8 +886,8 @@ public class BlockChanger {
             return this;
         }
 
-        protected static BlockLocation fromLocation(Location location) {
-            return new BlockLocation(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        protected Location toLocation(World world) {
+            return new Location(world, x, y, z);
         }
     }
 }
