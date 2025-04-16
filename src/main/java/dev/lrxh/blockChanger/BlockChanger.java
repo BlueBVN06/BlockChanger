@@ -1,5 +1,9 @@
 package dev.lrxh.blockChanger;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -16,7 +20,6 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -33,7 +36,7 @@ public class BlockChanger {
     private static int MINOR_VERSION;
     private static JavaPlugin plugin;
     private static boolean debug;
-    private static HashMap<String, Object> worldCache;
+    private static Long2ObjectMap<Object> worldCache;
     private static ExecutorService executorService;
 
     // NMS Classes
@@ -58,7 +61,7 @@ public class BlockChanger {
         BlockChanger.plugin = instance;
         BlockChanger.MINOR_VERSION = getMinorVersion();
         BlockChanger.debug = debug;
-        BlockChanger.worldCache = new HashMap<>();
+        BlockChanger.worldCache = new Long2ObjectOpenHashMap<>();
         BlockChanger.executorService = Executors.newSingleThreadExecutor();
 
         init();
@@ -151,11 +154,11 @@ public class BlockChanger {
      * @see BlockChanger#loadChunks(Snapshot);
      */
     public static void paste(Snapshot snapshot, int offsetX, int offsetZ, boolean ignoreAir) {
-        HashMap<Object, Set<BlockLocation>> data = new HashMap<>();
+        Object2ObjectOpenHashMap<Object, ObjectOpenHashSet<BlockLocation>> data = new Object2ObjectOpenHashMap<>();
 
-        for (Map.Entry<Object, Set<BlockLocation>> entry : snapshot.data.entrySet()) {
+        for (Map.Entry<Object, ObjectOpenHashSet<BlockLocation>> entry : snapshot.data.entrySet()) {
             if (ignoreAir && isAir(entry.getKey())) continue;
-            Set<BlockLocation> locations = new HashSet<>();
+            ObjectOpenHashSet<BlockLocation> locations = new ObjectOpenHashSet<>();
 
             data.put(entry.getKey(), locations);
 
@@ -338,11 +341,11 @@ public class BlockChanger {
         }
     }
 
-    private static void setBlocks(World world, HashMap<Object, Set<BlockLocation>> data) {
+    private static void setBlocks(World world, Object2ObjectOpenHashMap<Object, ObjectOpenHashSet<BlockLocation>> data) {
         long startTime = System.currentTimeMillis();
         HashMap<Long, Object> chunkCache = new HashMap<>();
 
-        for (Map.Entry<Object, Set<BlockLocation>> entry : data.entrySet()) {
+        for (Map.Entry<Object, ObjectOpenHashSet<BlockLocation>> entry : data.entrySet()) {
             for (BlockLocation location : entry.getValue()) {
                 setBlock(world, entry.getKey(), location, chunkCache);
             }
@@ -360,22 +363,10 @@ public class BlockChanger {
 
     private static void setBlock(World world, Object blockDataNMS, BlockLocation location, HashMap<Long, Object> chunkCache) {
         try {
-            int chunkX = location.x >> 4;
-            int chunkZ = location.z >> 4;
-            long chunkKey = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
-
-            Object nmsWorld = getWorldNMS(world);
-            Object nmsChunk = chunkCache.get(chunkKey);
-
-            if (nmsChunk == null) {
-                Chunk chunk = world.getChunkAt(chunkX, chunkZ);
-                nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
-                chunkCache.put(chunkKey, nmsChunk);
-            }
-
-            int x = location.x;
-            int y = location.y;
-            int z = location.z;
+            Object nmsChunk = getChunkAt(world, location, chunkCache);
+            int x = location.x();
+            int y = location.y();
+            int z = location.z();
 
             Object cs = getSection(nmsChunk, y);
             if (cs == null) return;
@@ -400,21 +391,17 @@ public class BlockChanger {
     }
 
     private static Object getWorldNMS(World world) {
-        Object c = worldCache.get(world.getName());
-        if (c != null) {
-            return c;
-        } else {
-            worldCache.remove(world.getName());
-        }
+        long worldKey = world.getUID().getMostSignificantBits();
+        Object cached = worldCache.get(worldKey);
+        if (cached != null) return cached;
 
         try {
             Object craftWorld = CRAFT_WORLD.cast(world);
             Object worldServer = WORLD_SERVER.cast(GET_HANDLE_WORLD.invoke(craftWorld));
-            worldCache.put(world.getName(), worldServer);
-
+            worldCache.put(worldKey, worldServer);
             return worldServer;
         } catch (Throwable e) {
-            debug("Error occurred while at #getWorldNMS(World) " + e.getMessage());
+            debug("Error in getWorldNMS: " + e.getMessage());
         }
         return null;
     }
@@ -488,18 +475,7 @@ public class BlockChanger {
 
     private static Object getNMSBlockData(Chunk chunk, World world, Location location, HashMap<Long, Object> chunkCache) {
         try {
-            int chunkX = location.getBlockX() >> 4;
-            int chunkZ = location.getBlockZ() >> 4;
-            long chunkKey = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
-
-            Object nmsWorld = getWorldNMS(world);
-            Object nmsChunk = chunkCache.get(chunkKey);
-
-            if (nmsChunk == null) {
-                nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
-                chunkCache.put(chunkKey, nmsChunk);
-            }
-
+            Object nmsChunk = getChunkAt(world, BlockLocation.fromLocation(location), chunkCache);
             int x = (int) location.getX();
             int y = location.getBlockY();
             int z = (int) location.getZ();
@@ -513,6 +489,23 @@ public class BlockChanger {
         }
 
         return null;
+    }
+
+    private static Object getChunkAt(World world, BlockLocation location, HashMap<Long, Object> chunkCache) {
+        int chunkX = location.x() >> 4;
+        int chunkZ = location.z() >> 4;
+        long chunkKey = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+
+        Object nmsWorld = getWorldNMS(world);
+        Object nmsChunk = chunkCache.get(chunkKey);
+
+        if (nmsChunk == null) {
+            Chunk chunk = world.getChunkAt(chunkX, chunkZ);
+            nmsChunk = getChunkNMS(nmsWorld, chunk, chunkCache);
+            chunkCache.put(chunkKey, nmsChunk);
+        }
+
+        return nmsChunk;
     }
 
     private static boolean isAir(Object blockData) {
@@ -761,14 +754,14 @@ public class BlockChanger {
      */
     public static class Snapshot {
         protected final World world;
-        protected final HashMap<Object, Set<BlockLocation>> data;
+        protected final Object2ObjectOpenHashMap<Object, ObjectOpenHashSet<BlockLocation>> data;
         protected final Location pos1, pos2;
 
         protected Snapshot(World world, Location pos1, Location pos2) {
             this.world = world;
             this.pos1 = pos1;
             this.pos2 = pos2;
-            this.data = new HashMap<>();
+            this.data = new Object2ObjectOpenHashMap<>();
         }
 
         protected void add(BlockSnapshot blockData) {
@@ -776,7 +769,7 @@ public class BlockChanger {
             BlockLocation location = blockData.location;
 
             if (data.get(nmsBlockData) == null) {
-                Set<BlockLocation> e = new HashSet<>();
+                ObjectOpenHashSet<BlockLocation> e = new ObjectOpenHashSet<>();
                 e.add(location);
                 data.put(nmsBlockData, e);
             } else {
@@ -863,29 +856,73 @@ public class BlockChanger {
     }
 
     protected static class BlockLocation {
-        protected int x, y, z;
+        private final long packedCoords;
 
         protected BlockLocation(int x, int y, int z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
+            if (x < -33554432 || x > 33554431 ||
+                    z < -33554432 || z > 33554431 ||
+                    y < -2048 || y > 2047) {
+                throw new IllegalArgumentException("Coordinates out of range for packing");
+            }
+            this.packedCoords = ((long)(x & 0x3FFFFFF) << 38) |
+                    ((long)(z & 0x3FFFFFF) << 12) |
+                    (y & 0xFFF);
         }
 
         protected static BlockLocation fromLocation(Location location) {
-            return new BlockLocation(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+            return new BlockLocation(
+                    location.getBlockX(),
+                    location.getBlockY(),
+                    location.getBlockZ()
+            );
         }
 
         @SuppressWarnings("all")
         protected BlockLocation add(int x, int y, int z) {
-            this.x += x;
-            this.y += y;
-            this.z += z;
-
-            return this;
+            return new BlockLocation(
+                    (int)((packedCoords >> 38) + x),
+                    (int)((packedCoords & 0xFFF) + y),
+                    (int)((packedCoords << 26 >> 38) + z)
+            );
         }
 
         protected Location toLocation(World world) {
-            return new Location(world, x, y, z);
+            return new Location(
+                    world,
+                    (int)(packedCoords >> 38),  // X
+                    (int)(packedCoords & 0xFFF), // Y
+                    (int)(packedCoords << 26 >> 38) // Z
+            );
+        }
+
+        protected int x() {
+            return (int)(packedCoords >> 38);
+        }
+
+        protected int y() {
+            return (int)(packedCoords & 0xFFF);
+        }
+
+        protected int z() {
+            return (int)(packedCoords << 26 >> 38);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            BlockLocation that = (BlockLocation) o;
+            return packedCoords == that.packedCoords;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(packedCoords);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("BlockLocation{x=%d, y=%d, z=%d}", x(), y(), z());
         }
     }
 }
