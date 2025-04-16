@@ -201,6 +201,7 @@ public class BlockChanger {
             throw new IllegalArgumentException("pos2 must not be null");
         }
 
+        long startTime = System.currentTimeMillis();
         Location max = new Location(pos1.getWorld(), Math.max(pos1.getX(), pos2.getX()), Math.max(pos1.getY(), pos2.getY()), Math.max(pos1.getZ(), pos2.getZ()));
         Location min = new Location(pos1.getWorld(), Math.min(pos1.getX(), pos2.getX()), Math.min(pos1.getY(), pos2.getY()), Math.min(pos1.getZ(), pos2.getZ()));
         World world = max.getWorld();
@@ -227,7 +228,9 @@ public class BlockChanger {
             }
         }
 
-        debug("Captured Snapshot: " + snapshot.data.size());
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+        debug("Snapshot capture time: " + duration + " ms");
         return snapshot;
     }
 
@@ -324,7 +327,7 @@ public class BlockChanger {
      * @param blockState BlockState to be turned into an ItemStack
      * @return ItemStack
      */
-    public static ItemStack fromBlock(BlockState blockState) {
+    public static ItemStack fromBlockState(BlockState blockState) {
         ItemStack itemStack = new ItemStack(blockState.getType());
         if (MINOR_VERSION == 8) {
             itemStack.setData(blockState.getData());
@@ -372,7 +375,7 @@ public class BlockChanger {
 
             SET_TYPE.invoke(cs, x & 15, y & 15, z & 15, blockDataNMS);
         } catch (Throwable e) {
-            debug("Error occurred while at #setBlock(World, Object, Location, HashMap) " + e.getMessage());
+            debug("Error occurred while at #setBlock(World, BlockSnapshot, HashMap) " + e.getMessage());
         }
     }
 
@@ -478,23 +481,6 @@ public class BlockChanger {
             int x = (int) location.getX();
             int y = location.getBlockY();
             int z = (int) location.getZ();
-
-            Object cs = getSection(nmsChunk, y);
-            if (cs == null) return null;
-
-            return GET_BLOCK_DATA.invoke(cs, x & 15, y & 15, z & 15);
-        } catch (Throwable e) {
-            debug("Error occurred while at #getNMSBlockData(Chunk, World, Location, HashMap) " + e.getMessage());
-        }
-
-        return null;
-    }
-
-    private static Object getNMSBlockData(Object nmsChunk, World world, BlockLocation location, HashMap<Long, Object> chunkCache) {
-        try {
-            int x = location.x();
-            int y = location.y();
-            int z = location.z();
 
             Object cs = getSection(nmsChunk, y);
             if (cs == null) return null;
