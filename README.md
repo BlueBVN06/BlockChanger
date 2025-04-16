@@ -29,7 +29,7 @@ World world = ...;
 
 BlockChanger.Snapshot snapshot = BlockChanger.capture(pos1, pos2, true);
 
-BlockChanger.revert(world, snapshot);
+BlockChanger.revert(snapshot);
 ```
 ## Pasting System
 ```java
