@@ -79,11 +79,7 @@ public class BlockChanger {
         }
 
         Set<Long> chunkKeys = chunkCache.keySet();
-        for (long chunkKey : chunkKeys) {
-            int chunkX = (int)(chunkKey >> 32);
-            int chunkZ = (int)chunkKey;
-            world.refreshChunk(chunkX, chunkZ);
-        }
+        refreshChunks(world, chunkCache);
 
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
@@ -247,14 +243,13 @@ public class BlockChanger {
     /**
      * Revert all changes from the snapshot.
      *
-     * @param world    World to place the snapshot in
      * @param snapshot Snapshot you have captured
      * @see BlockChanger#loadChunks(Snapshot);
      */
-    public static void revert(World world, Snapshot snapshot) {
+    public static void revert(Snapshot snapshot) {
         long startTime = System.currentTimeMillis();
 
-        setBlocks(world, snapshot.data);
+        setBlocks(snapshot.world, snapshot.data);
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
         debug("Snapshot revert time: " + duration + " ms");
@@ -266,12 +261,12 @@ public class BlockChanger {
      * @param snapshot Snapshot you have captured
      * @return A CompletableFuture that completes when the operation is done.
      */
-    public static CompletableFuture<Void> revertAsync(World world, Snapshot snapshot) {
-        return CompletableFuture.runAsync(() -> revert(world, snapshot), executorService);
+    public static CompletableFuture<Void> revertAsync(Snapshot snapshot) {
+        return CompletableFuture.runAsync(() -> revert(snapshot), executorService);
     }
 
     /**
-     * Load all chunks between 2 positions
+     * Load all chunks in a Snapshot
      *
      * @param snapshot Snapshot to load all chunks for.
      */
@@ -335,6 +330,14 @@ public class BlockChanger {
         return itemStack;
     }
 
+    private static void refreshChunks(World world, HashMap<Long, Object> chunkCache) {
+        for (long chunkKey : chunkCache.keySet()) {
+            int chunkX = (int)(chunkKey >> 32);
+            int chunkZ = (int)chunkKey;
+            world.refreshChunk(chunkX, chunkZ);
+        }
+    }
+
     private static void setBlocks(World world, HashMap<Object, Set<BlockLocation>> data) {
         long startTime = System.currentTimeMillis();
         HashMap<Long, Object> chunkCache = new HashMap<>();
@@ -344,12 +347,7 @@ public class BlockChanger {
                 setBlock(world, entry.getKey(), location, chunkCache);
             }
         }
-
-        for (long chunkKey : chunkCache.keySet()) {
-            int chunkX = (int)(chunkKey >> 32);
-            int chunkZ = (int)chunkKey;
-            world.refreshChunk(chunkX, chunkZ);
-        }
+        refreshChunks(world, chunkCache);
 
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
