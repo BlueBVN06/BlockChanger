@@ -1,4 +1,4 @@
-package dev.lrxh.blockChanger.wrapper.impl.snapshot;
+package dev.lrxh.blockChanger.snapshot;
 
 import dev.lrxh.blockChanger.BlockChanger;
 import org.bukkit.Chunk;

@@ -2,8 +2,8 @@ package dev.lrxh.blockChanger;
 
 import dev.lrxh.blockChanger.lighting.LightingService;
 import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
-import dev.lrxh.blockChanger.wrapper.impl.snapshot.ChunkSectionSnapshot;
-import dev.lrxh.blockChanger.wrapper.impl.snapshot.CuboidSnapshot;
+import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
+import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 
