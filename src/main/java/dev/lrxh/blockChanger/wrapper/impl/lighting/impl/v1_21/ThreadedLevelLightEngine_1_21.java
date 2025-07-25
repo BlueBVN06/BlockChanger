@@ -36,7 +36,6 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
                     .invoke(chunkProvider);
 
         } catch (Throwable e) {
-            e.printStackTrace();
             throw new RuntimeException("Failed to get ThreadedLevelLightEngine instance", e);
         }
     }
@@ -44,11 +43,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
     @Override
     public void relightChunks(Set<Chunk> chunks) {
         try {
-            Class<?> starLightProviderClass = Class.forName(
-                    "ca.spottedleaf.moonrise.patches.starlight.light.StarLightLightingProvider"
-            );
-
-            Object lightEngine = starLightProviderClass.cast(nms());
+            Object lightEngine = nms();
             Collection<Object> chunkPositions = new ArrayList<>();
 
             Method relightMethod = getReflectiveMethod(
@@ -59,7 +54,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
                     IntConsumer.class
             );
 
-            Class<?> chunkPosClass = Class.forName("net.minecraft.world.level.ChunkPos");
+            Class<?> chunkPosClass = nms("world.level.ChunkPos");
             Constructor<?> chunkPosConstructor = chunkPosClass.getConstructor(int.class, int.class);
 
             for (Chunk chunk : chunks) {
@@ -70,12 +65,13 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
             relightMethod.invoke(
                     lightEngine,
                     chunkPositions,
-                    (Consumer<Object>) chunkPos -> {},
-                    (IntConsumer) value -> {}
+                    (Consumer<Object>) chunkPos -> {
+                    },
+                    (IntConsumer) value -> {
+                    }
             );
 
         } catch (Throwable e) {
-            e.printStackTrace();
             throw new RuntimeException("Failed to relight chunks using StarLightLightingProvider", e);
         }
     }
