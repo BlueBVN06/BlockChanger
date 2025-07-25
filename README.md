@@ -1,7 +1,7 @@
 # 🧱 BlockChanger
 
 <div align="center">
-  <strong>Ultra-fast block snapshotting and restoration library for Bukkit/Spigot/Paper plugins.</strong><br>
+  Ultra-fast block snapshotting and restoration library <strong>ONLY</strong> for Paper plugins.<br>
   Efficient, high-performance, and easy to use.
 </div>
 

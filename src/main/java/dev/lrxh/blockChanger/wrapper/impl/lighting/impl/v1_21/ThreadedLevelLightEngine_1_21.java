@@ -29,10 +29,6 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
             Object chunkProviderInstance = getMethod(world.getClass(), "m", chunkProvider).invoke(world);
             Class<?> threadedLevelLightEngine = nms("server.level.ThreadedLevelLightEngine");
             Object result = getMethod(chunkProviderInstance.getClass(), "a", threadedLevelLightEngine).invoke(chunkProviderInstance);
-            for (Method method : result.getClass().getMethods()) {
-                System.out.println(method);
-            }
-
             return result;
         } catch (Throwable e) {
             e.printStackTrace();
