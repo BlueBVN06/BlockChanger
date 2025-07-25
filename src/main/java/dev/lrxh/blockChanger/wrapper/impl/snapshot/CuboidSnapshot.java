@@ -1,4 +1,4 @@
-package dev.lrxh.blockChanger.snapshot;
+package dev.lrxh.blockChanger.wrapper.impl.snapshot;
 
 import dev.lrxh.blockChanger.BlockChanger;
 import org.bukkit.Chunk;
@@ -8,6 +8,7 @@ import org.bukkit.World;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class CuboidSnapshot {
     private final Map<Chunk, ChunkSectionSnapshot> snapshots;
@@ -39,7 +40,7 @@ public class CuboidSnapshot {
         return snapshots;
     }
 
-    public void restore() {
-        BlockChanger.restoreCuboidSnapshot(this);
+    public CompletableFuture<Void> restore() {
+        return BlockChanger.restoreCuboidSnapshot(this);
     }
 }

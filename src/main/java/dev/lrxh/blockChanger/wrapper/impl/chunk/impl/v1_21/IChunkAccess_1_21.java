@@ -1,6 +1,6 @@
-package dev.lrxh.blockChanger.chunk.impl.v1_21;
+package dev.lrxh.blockChanger.wrapper.impl.chunk.impl.v1_21;
 
-import dev.lrxh.blockChanger.chunk.IChunkAccess;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.IChunkAccess;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Array;
@@ -68,6 +68,4 @@ public class IChunkAccess_1_21 extends IChunkAccess {
             throw new RuntimeException("Failed to copy chunk section", e);
         }
     }
-
-
 }

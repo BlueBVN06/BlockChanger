@@ -1,12 +1,14 @@
 package dev.lrxh.blockChanger;
 
-import dev.lrxh.blockChanger.chunk.CraftChunk;
-import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
-import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
+import dev.lrxh.blockChanger.lighting.LightingService;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
+import dev.lrxh.blockChanger.wrapper.impl.snapshot.ChunkSectionSnapshot;
+import dev.lrxh.blockChanger.wrapper.impl.snapshot.CuboidSnapshot;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class BlockChanger {
     public static int MINOR_VERSION;
@@ -22,11 +24,16 @@ public class BlockChanger {
         chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
     }
 
-    public static void restoreCuboidSnapshot(CuboidSnapshot snapshot) {
-        for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
-            restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
-        }
+    public static CompletableFuture<Void> restoreCuboidSnapshot(CuboidSnapshot snapshot) {
+        return CompletableFuture.runAsync(() -> {
+            for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
+                restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
+            }
+
+            LightingService.updateLighting(snapshot.getSnapshots().keySet());
+        });
     }
+
 
     public static int getMinorVersion() {
         if (MINOR_VERSION != 0) {

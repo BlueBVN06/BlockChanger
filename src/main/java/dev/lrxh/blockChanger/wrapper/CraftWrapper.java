@@ -1,9 +1,10 @@
-package dev.lrxh.blockChanger;
+package dev.lrxh.blockChanger.wrapper;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 public abstract class CraftWrapper<T> {
     private final Object nms;
@@ -37,10 +38,24 @@ public abstract class CraftWrapper<T> {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
             MethodType methodType = MethodType.methodType(returnType, parameterTypes);
 
-            return lookup.findVirtual(clazz, methodName, methodType);
+            try {
+                return lookup.findVirtual(clazz, methodName, methodType);
+            } catch (NoSuchMethodException e) {
+                return lookup.findSpecial(clazz, methodName, methodType, clazz);
+            }
 
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException("Failed to get method handle for " + methodName + " in " + clazz.getName(), e);
+        }
+    }
+
+    protected Method getReflectiveMethod(Class<?> clazz, String methodName, Class<?>... parameterTypes) {
+        try {
+            Method method = clazz.getDeclaredMethod(methodName, parameterTypes);
+            method.setAccessible(true);
+            return method;
+        } catch (NoSuchMethodException | SecurityException e) {
+            throw new RuntimeException("Failed to reflect method " + methodName + " in " + clazz.getName(), e);
         }
     }
 

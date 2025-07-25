@@ -1,7 +1,7 @@
-package dev.lrxh.blockChanger.chunk.impl.v1_21;
+package dev.lrxh.blockChanger.wrapper.impl.chunk.impl.v1_21;
 
-import dev.lrxh.blockChanger.chunk.CraftChunk;
-import dev.lrxh.blockChanger.chunk.IChunkAccess;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.IChunkAccess;
 import org.bukkit.Chunk;
 
 import java.lang.invoke.MethodHandle;
@@ -38,7 +38,7 @@ public class CraftChunk_1_21 extends CraftChunk {
 
             Object fullStatus = getFieldValue(field);
 
-            Object rawResult = getHandle.invokeWithArguments(nms(), fullStatus);
+            Object rawResult = getHandle.invoke(nms(), fullStatus);
 
             return IChunkAccess.from(rawResult);
         } catch (Throwable e) {

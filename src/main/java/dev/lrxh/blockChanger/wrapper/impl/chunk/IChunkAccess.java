@@ -1,8 +1,8 @@
-package dev.lrxh.blockChanger.chunk;
+package dev.lrxh.blockChanger.wrapper.impl.chunk;
 
 import dev.lrxh.blockChanger.BlockChanger;
-import dev.lrxh.blockChanger.CraftWrapper;
-import dev.lrxh.blockChanger.chunk.impl.v1_21.IChunkAccess_1_21;
+import dev.lrxh.blockChanger.wrapper.CraftWrapper;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.impl.v1_21.IChunkAccess_1_21;
 
 public abstract class IChunkAccess extends CraftWrapper<Object> {
     public IChunkAccess(Object input) {

@@ -1,4 +1,4 @@
-package dev.lrxh.blockChanger.snapshot;
+package dev.lrxh.blockChanger.wrapper.impl.snapshot;
 
 public class ChunkSectionSnapshot {
     private final Object[] sections;
