@@ -39,7 +39,7 @@ Include BlockChanger in your Maven project:
 </dependency>
 ```
 
-> Replace `{latest-version}` with the version shown in your repository or artifact manager.
+> Replace `{latest-version}` with the version shown in pom.xml
 
 ---
 
