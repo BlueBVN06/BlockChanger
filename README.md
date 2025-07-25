@@ -55,8 +55,5 @@ Location loc2 = ...;
 // Create a snapshot of the block states in the region
 CuboidSnapshot snapshot = new CuboidSnapshot(loc1, loc2);
 
-// Perform operations that modify the blocks...
-// ...
-
 // Restore the blocks in the cuboid to their original snapshot state
 snapshot.restore();
