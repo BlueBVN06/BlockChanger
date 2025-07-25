@@ -38,4 +38,8 @@ public class CuboidSnapshot {
     public Map<Chunk, ChunkSectionSnapshot> getSnapshots() {
         return snapshots;
     }
+
+    public void restore() {
+        BlockChanger.restoreCuboidSnapshot(this);
+    }
 }
