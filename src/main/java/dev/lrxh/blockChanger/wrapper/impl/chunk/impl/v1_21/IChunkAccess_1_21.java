@@ -15,11 +15,11 @@ public class IChunkAccess_1_21 extends IChunkAccess {
     @Override
     public Object[] getSections() {
         try {
-            Class<?> chunkClass = nms().getClass();
+            Class<?> chunkClass = get().getClass();
 
             Class<?> chunkSectionClass = nms("world.level.chunk.ChunkSection");
             MethodHandle getSectionsHandle = getMethod(chunkClass, "d", Array.newInstance(chunkSectionClass, 0).getClass());
-            return (Object[]) getSectionsHandle.invoke(nms());
+            return (Object[]) getSectionsHandle.invoke(get());
         } catch (Throwable e) {
             throw new RuntimeException("Failed to get chunk handle", e);
         }

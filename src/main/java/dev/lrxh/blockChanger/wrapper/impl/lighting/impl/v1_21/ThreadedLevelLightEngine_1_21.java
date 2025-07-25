@@ -24,8 +24,8 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
         try {
             Class<?> serverLevelClass = nms("server.level.ServerLevel");
             CraftWorld craftWorld = new CraftWorld(input);
-            Object world = getMethod(craftWorld.nms().getClass(), "getHandle", serverLevelClass)
-                    .invoke(craftWorld.nms());
+            Object world = getMethod(craftWorld.get().getClass(), "getHandle", serverLevelClass)
+                    .invoke(craftWorld.get());
 
             Class<?> chunkProviderClass = nms("server.level.ChunkProviderServer");
             Object chunkProvider = getMethod(world.getClass(), "m", chunkProviderClass)
@@ -43,7 +43,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
     @Override
     public void relightChunks(Set<Chunk> chunks) {
         try {
-            Object lightEngine = nms();
+            Object lightEngine = get();
             Collection<Object> chunkPositions = new ArrayList<>();
 
             Method relightMethod = getReflectiveMethod(

@@ -23,7 +23,7 @@ public abstract class CraftWrapper<T> {
         return ReflectionUtility.getClass("net.minecraft." + className);
     }
 
-    public Object nms() {
+    public Object get() {
         return nms;
     }
 

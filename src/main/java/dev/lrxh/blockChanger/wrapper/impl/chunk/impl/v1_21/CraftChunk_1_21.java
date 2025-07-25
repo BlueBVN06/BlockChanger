@@ -25,7 +25,7 @@ public class CraftChunk_1_21 extends CraftChunk {
             Class<?> iChunkAccessClass = nms("world.level.chunk.IChunkAccess");
 
             MethodHandle getHandle = getMethod(
-                    nms().getClass(),
+                    get().getClass(),
                     "getHandle",
                     iChunkAccessClass,
                     chunkStatusClass
@@ -38,7 +38,7 @@ public class CraftChunk_1_21 extends CraftChunk {
 
             Object fullStatus = getFieldValue(field);
 
-            Object rawResult = getHandle.invoke(nms(), fullStatus);
+            Object rawResult = getHandle.invoke(get(), fullStatus);
 
             return IChunkAccess.from(rawResult);
         } catch (Throwable e) {
