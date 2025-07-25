@@ -43,7 +43,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
     @Override
     public void relightChunks(Set<Chunk> chunks) {
         try {
-            Object lightEngine = get();
+            Object lightEngine = this.get();
             Collection<Object> chunkPositions = new ArrayList<>();
 
             Method relightMethod = getReflectiveMethod(

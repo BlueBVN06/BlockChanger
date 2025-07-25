@@ -1,18 +1,15 @@
 # 🧱 BlockChanger
 
-<div align="center">
-  Ultra-fast block snapshotting and restoration library <strong>ONLY</strong> for Paper plugins.<br>
-  Efficient, high-performance, and easy to use.
-</div>
+Ultra-fast block snapshotting and restoration library, Efficient, high-performance, and easy to use.<br>
 
 ---
 
 ## 🚀 Features
 
-* 📸 **Fast Block Snapshotting** — Capture block data in a cuboid area with minimal overhead.
-* ♻️ **Instant Restoration** — Restore block snapshots to their original state efficiently.
-* ⚡ **High Performance** — Designed for speed with minimal memory usage.
-* 🛆 **Lightweight API** — Simple to integrate and use in any Minecraft plugin.
+* 📸 **Fast Block Snapshotting** — Capture block data with minimal overhead
+* ♻️ **Instant Restoration** — Restore block snapshots to their original state efficiently
+* ⚡ **High Performance** — Made for speed with minimal usage
+* 🛆 **Lightweight API** — Simple to integrate
 
 ---
 

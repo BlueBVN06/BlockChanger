@@ -1,9 +1,10 @@
 package dev.lrxh.blockChanger;
 
 import dev.lrxh.blockChanger.lighting.LightingService;
-import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
 import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
+import dev.lrxh.blockChanger.utility.ReflectionUtility;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 
@@ -12,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class BlockChanger {
     public static int MINOR_VERSION;
+    public static boolean isPaper;
 
     public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
         CraftChunk craftChunk = CraftChunk.from(chunk);
@@ -46,6 +48,8 @@ public class BlockChanger {
         } else {
             MINOR_VERSION = 0;
         }
+
+        isPaper = ReflectionUtility.getClass("ca.spottedleaf.moonrise.patches.starlight.light.StarLightLightingProvider") != null;
 
         return MINOR_VERSION;
     }
