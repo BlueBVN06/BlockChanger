@@ -60,17 +60,3 @@ CuboidSnapshot snapshot = new CuboidSnapshot(loc1, loc2);
 
 // Restore the blocks in the cuboid to their original snapshot state
 snapshot.restore();
-``
-
-## 📄 API Overview
-
-```java
-// Constructor
-CuboidSnapshot snapshot = new CuboidSnapshot(Location corner1, Location corner2);
-
-// Restore blocks
-snapshot.restore();
-
-// Optionally clear internal data if no longer needed
-snapshot.clear();
-```
