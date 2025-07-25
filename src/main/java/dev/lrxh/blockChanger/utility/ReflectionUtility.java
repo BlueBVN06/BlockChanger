@@ -9,7 +9,9 @@ public class ReflectionUtility {
     public static Class<?> getClass(String className) {
         try {
             if (cache.containsKey(className)) return cache.get(className);
-            return Class.forName(className);
+            Class<?> clazz = Class.forName(className);
+            cache.put(className, clazz);
+            return clazz;
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Class not found: " + className, e);
         }
