@@ -10,10 +10,14 @@ import org.bukkit.Chunk;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class BlockChanger {
     public static int MINOR_VERSION;
     public static boolean isPaper;
+
+    private static final ExecutorService VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
         CraftChunk craftChunk = CraftChunk.from(chunk);
@@ -22,7 +26,7 @@ public class BlockChanger {
 
     public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot) {
         CraftChunk craftChunk = CraftChunk.from(chunk);
-        craftChunk.getHandle().setSections(snapshot.getSections());
+        craftChunk.getHandle().setSections(snapshot.sections());
         chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
     }
 
@@ -33,9 +37,8 @@ public class BlockChanger {
             }
 
             LightingService.updateLighting(snapshot.getSnapshots().keySet());
-        });
+        }, VIRTUAL_THREAD_EXECUTOR);
     }
-
 
     public static int getMinorVersion() {
         if (MINOR_VERSION != 0) {

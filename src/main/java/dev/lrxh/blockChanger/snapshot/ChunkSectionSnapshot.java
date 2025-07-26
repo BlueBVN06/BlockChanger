@@ -1,13 +1,4 @@
 package dev.lrxh.blockChanger.snapshot;
 
-public class ChunkSectionSnapshot {
-    private final Object[] sections;
-
-    public ChunkSectionSnapshot(Object[] sections) {
-        this.sections = sections;
-    }
-
-    public Object[] getSections() {
-        return sections;
-    }
+public record ChunkSectionSnapshot(Object[] sections) {
 }
