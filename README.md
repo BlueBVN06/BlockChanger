@@ -15,30 +15,47 @@ Ultra-fast block snapshotting and restoration library, Efficient, high-performan
 
 ## 🛠️ Setup
 
-### 🔧 Build (Locally)
-
-To build the project using Maven:
-
-```bash
-mvn clean install
-```
-
 ### 📥 Add as a Dependency
 
-Include BlockChanger in your Maven project:
+Include BlockChanger in your project using [JitPack](https://jitpack.io):
+
+#### Maven
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+```
+**Add the dependency:**
 
 ```xml
 <dependency>
-    <groupId>dev.lrxh</groupId>
+    <groupId>com.github.Devlrxxh</groupId>
     <artifactId>BlockChanger</artifactId>
-    <version>{latest-version}</version>
-    <scope>provided</scope>
+    <version>{latest-commit-hash}</version>
 </dependency>
 ```
 
-> Replace `{latest-version}` with the version shown in pom.xml
+#### Gradle
 
----
+1. **Add the JitPack repository to your `build.gradle`:**
+
+```groovy
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+```
+
+2. **Add the dependency:**
+
+```groovy
+dependencies {
+    implementation 'com.github.Devlrxxh:BlockChanger:{latest-commit-hash}'
+}
+```
 
 ## 📚 Usage
 
