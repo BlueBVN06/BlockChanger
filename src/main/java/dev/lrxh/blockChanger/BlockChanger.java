@@ -42,14 +42,14 @@ public class BlockChanger {
             return MINOR_VERSION;
         }
 
-        String[] versionParts = Bukkit.getServer().getBukkitVersion().split("-")[0].split("\\.");
-        if (versionParts.length >= 2) {
-            MINOR_VERSION = Integer.parseInt(versionParts[1]);
-        } else {
-            MINOR_VERSION = 0;
-        }
+        String version = Bukkit.getServer().getBukkitVersion().split("-")[0];
+        String[] versionParts = version.split("\\.");
 
-        isPaper = ReflectionUtility.getClass("ca.spottedleaf.moonrise.patches.starlight.light.StarLightLightingProvider") != null;
+        MINOR_VERSION = (versionParts.length >= 2) ? Integer.parseInt(versionParts[1]) : 0;
+
+        isPaper = ReflectionUtility.getClass(
+                "ca.spottedleaf.moonrise.patches.starlight.light.StarLightLightingProvider"
+        ) != null;
 
         return MINOR_VERSION;
     }
