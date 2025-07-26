@@ -7,15 +7,21 @@ public class ReflectionUtility {
     private static final Map<String, Class<?>> cache = new HashMap<>();
 
     public static Class<?> getClass(String className) {
+        if (cache.containsKey(className)) {
+            return cache.get(className);
+        }
 
-        if (cache.containsKey(className)) return cache.get(className);
         Class<?> clazz = null;
         try {
             clazz = Class.forName(className);
-
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException ignored) {
         }
-        if (clazz != null) cache.put(className, clazz);
+
+        if (clazz != null) {
+            cache.put(className, clazz);
+        }
+
         return clazz;
     }
+
 }

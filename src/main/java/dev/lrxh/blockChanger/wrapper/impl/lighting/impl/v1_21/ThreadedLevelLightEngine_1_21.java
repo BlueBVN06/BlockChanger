@@ -72,7 +72,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
             );
 
         } catch (Throwable e) {
-            throw new RuntimeException("Failed to relight chunks using StarLightLightingProvider", e);
+            throw new RuntimeException("Failed to relight chunks", e);
         }
     }
 }

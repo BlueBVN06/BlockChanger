@@ -49,7 +49,7 @@ public abstract class CraftWrapper<T> {
             method.setAccessible(true);
             return method;
         } catch (NoSuchMethodException | SecurityException e) {
-            throw new RuntimeException("Failed to reflect method " + methodName + " in " + clazz.getName(), e);
+            throw new RuntimeException("Failed to get method " + methodName + " in " + clazz.getName(), e);
         }
     }
 
