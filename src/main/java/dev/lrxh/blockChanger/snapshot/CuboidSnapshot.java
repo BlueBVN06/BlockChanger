@@ -58,8 +58,12 @@ public class CuboidSnapshot {
             return CompletableFuture.completedFuture(new CuboidSnapshot(Collections.emptyMap()));
         }
 
-        int chunkOffsetX = xOffset >> 4;
-        int chunkOffsetZ = zOffset >> 4;
+        if (xOffset % 16 != 0 || zOffset % 16 != 0) {
+            throw new IllegalArgumentException("Offsets must be multiples of 16.");
+        }
+
+        int chunkOffsetX = Math.floorDiv(xOffset, 16);
+        int chunkOffsetZ = Math.floorDiv(zOffset, 16);
 
         World world = snapshots.keySet().iterator().next().getWorld();
 
