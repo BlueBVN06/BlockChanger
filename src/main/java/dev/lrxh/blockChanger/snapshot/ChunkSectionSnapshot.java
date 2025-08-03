@@ -1,4 +1,4 @@
 package dev.lrxh.blockChanger.snapshot;
 
-public record ChunkSectionSnapshot(Object[] sections) {
+public record ChunkSectionSnapshot(Object[] sections, ChunkPosition position) {
 }

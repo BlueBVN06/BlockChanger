@@ -92,4 +92,38 @@ public class CuboidSnapshot {
                 });
     }
 
+    public CompletableFuture<CuboidSnapshot> offset(int xOffset, int zOffset, Map<ChunkPosition, Chunk> preloadedChunks) {
+        if (snapshots.isEmpty()) {
+            return CompletableFuture.completedFuture(new CuboidSnapshot(Collections.emptyMap()));
+        }
+
+        if (xOffset % 16 != 0 || zOffset % 16 != 0) {
+            throw new IllegalArgumentException("Offsets must be multiples of 16.");
+        }
+
+        int chunkOffsetX = xOffset / 16;
+        int chunkOffsetZ = zOffset / 16;
+
+        Map<Chunk, ChunkSectionSnapshot> offsetSnapshots = new HashMap<>(snapshots.size());
+
+        for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshots.entrySet()) {
+            Chunk originalChunk = entry.getKey();
+            ChunkSectionSnapshot snapshot = entry.getValue();
+
+            int newX = originalChunk.getX() + chunkOffsetX;
+            int newZ = originalChunk.getZ() + chunkOffsetZ;
+            ChunkPosition newPos = new ChunkPosition(newX, newZ);
+
+            Chunk targetChunk = preloadedChunks.get(newPos);
+            if (targetChunk == null) {
+                throw new IllegalArgumentException("Missing preloaded chunk for: " + newPos);
+            }
+
+            offsetSnapshots.put(targetChunk, snapshot);
+        }
+
+        return CompletableFuture.completedFuture(new CuboidSnapshot(offsetSnapshots));
+    }
+
+
 }

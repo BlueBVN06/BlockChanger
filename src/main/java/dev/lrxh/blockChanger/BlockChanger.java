@@ -1,6 +1,7 @@
 package dev.lrxh.blockChanger;
 
 import dev.lrxh.blockChanger.lighting.LightingService;
+import dev.lrxh.blockChanger.snapshot.ChunkPosition;
 import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import dev.lrxh.blockChanger.utility.ReflectionUtility;
@@ -14,14 +15,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class BlockChanger {
+    private static final ExecutorService VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
     public static int MINOR_VERSION;
     public static boolean isPaper;
 
-    private static final ExecutorService VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
-
     public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
         CraftChunk craftChunk = CraftChunk.from(chunk);
-        return new ChunkSectionSnapshot(craftChunk.getHandle().getSectionsCopy());
+        ChunkPosition position = new ChunkPosition(chunk.getX(), chunk.getZ());
+        return new ChunkSectionSnapshot(craftChunk.getHandle().getSectionsCopy(), position);
     }
 
     public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot) {
