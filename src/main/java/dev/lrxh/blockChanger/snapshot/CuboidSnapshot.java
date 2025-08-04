@@ -115,9 +115,9 @@ public class CuboidSnapshot {
             ChunkPosition newPos = new ChunkPosition(newX, newZ);
 
             Chunk targetChunk = preloadedChunks.get(newPos);
-            if (targetChunk == null) {
-                throw new IllegalArgumentException("Missing preloaded chunk for: " + newPos);
-            }
+
+            // Fallback to original chunk if preloaded chunk is not available
+            if (targetChunk == null) targetChunk = originalChunk.getWorld().getChunkAt(newX, newZ);
 
             offsetSnapshots.put(targetChunk, snapshot);
         }
