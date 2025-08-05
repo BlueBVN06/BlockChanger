@@ -104,26 +104,37 @@ public class CuboidSnapshot {
         int chunkOffsetX = xOffset / 16;
         int chunkOffsetZ = zOffset / 16;
 
-        Map<Chunk, ChunkSectionSnapshot> offsetSnapshots = new HashMap<>(snapshots.size());
+        List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futureEntries = snapshots.entrySet().stream()
+                .map(entry -> {
+                    Chunk originalChunk = entry.getKey();
+                    ChunkSectionSnapshot snapshot = entry.getValue();
 
-        for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshots.entrySet()) {
-            Chunk originalChunk = entry.getKey();
-            ChunkSectionSnapshot snapshot = entry.getValue();
+                    int newX = originalChunk.getX() + chunkOffsetX;
+                    int newZ = originalChunk.getZ() + chunkOffsetZ;
+                    ChunkPosition newPos = new ChunkPosition(newX, newZ);
 
-            int newX = originalChunk.getX() + chunkOffsetX;
-            int newZ = originalChunk.getZ() + chunkOffsetZ;
-            ChunkPosition newPos = new ChunkPosition(newX, newZ);
+                    Chunk preloadedChunk = preloadedChunks.get(newPos);
 
-            Chunk targetChunk = preloadedChunks.get(newPos);
+                    CompletableFuture<Chunk> chunkFuture;
 
-            // Fallback to original chunk if preloaded chunk is not available
-            if (targetChunk == null) targetChunk = originalChunk.getWorld().getChunkAt(newX, newZ);
+                    if (preloadedChunk != null) {
+                        chunkFuture = CompletableFuture.completedFuture(preloadedChunk);
+                    } else {
+                        chunkFuture = originalChunk.getWorld().getChunkAtAsync(newX, newZ);
+                    }
 
-            offsetSnapshots.put(targetChunk, snapshot);
-        }
+                    return chunkFuture.thenApply(chunk -> Map.entry(chunk, snapshot));
+                })
+                .toList();
 
-        return CompletableFuture.completedFuture(new CuboidSnapshot(offsetSnapshots));
+        return CompletableFuture.allOf(futureEntries.toArray(new CompletableFuture[0]))
+                .thenApply(v -> {
+                    Map<Chunk, ChunkSectionSnapshot> offsetSnapshots = new HashMap<>(snapshots.size());
+                    for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futureEntries) {
+                        Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
+                        offsetSnapshots.put(entry.getKey(), entry.getValue());
+                    }
+                    return new CuboidSnapshot(offsetSnapshots);
+                });
     }
-
-
 }
