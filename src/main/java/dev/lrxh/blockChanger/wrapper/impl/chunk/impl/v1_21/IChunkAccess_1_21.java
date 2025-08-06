@@ -7,11 +7,16 @@ import org.bukkit.block.data.BlockData;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class IChunkAccess_1_21 extends IChunkAccess {
+    private final Map<Integer, Object> sections;
+
     public IChunkAccess_1_21(Object input) {
         super(input);
+        this.sections = new HashMap<>();
     }
 
     @Override
@@ -87,9 +92,13 @@ public class IChunkAccess_1_21 extends IChunkAccess {
     @Override
     public Object getSection(int y) {
         try {
+            if (sections.containsKey(y)) {
+                return sections.get(y);
+            }
             Object levelHeightAccessor = nms("world.level.LevelHeightAccessor").cast(get());
             int sectionIndex = (int) getMethod(levelHeightAccessor.getClass(), "f", int.class, int.class).invoke(levelHeightAccessor, y);
             Object section = getSections()[sectionIndex];
+            sections.put(sectionIndex, section);
             return section;
         } catch (Throwable e) {
             throw new RuntimeException("Failed to get section", e);

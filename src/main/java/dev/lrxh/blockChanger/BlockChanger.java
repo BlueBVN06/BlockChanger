@@ -6,11 +6,14 @@ import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import dev.lrxh.blockChanger.utility.ReflectionUtility;
 import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
+import dev.lrxh.blockChanger.wrapper.impl.chunk.IChunkAccess;
+import it.unimi.dsi.fastutil.Pair;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.block.data.BlockData;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -19,7 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class BlockChanger {
-    private static final ExecutorService VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+    private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
     public static int MINOR_VERSION;
     public static boolean isPaper;
 
@@ -37,34 +40,45 @@ public class BlockChanger {
 
     public static CompletableFuture<Void> setBlocks(Map<Location, BlockData> blocks, boolean updateLighting) {
         return CompletableFuture.runAsync(() -> {
-            Set<Chunk> chunks = new HashSet<>();
+            Map<ChunkPosition, Pair<IChunkAccess, Chunk>> chunkCache = new HashMap<>();
 
             for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
-                Location location = entry.getKey();
-                BlockData blockData = entry.getValue();
+                Location loc = entry.getKey();
+                BlockData data = entry.getValue();
 
-                Chunk chunk = location.getChunk();
-                CraftChunk craftChunk = CraftChunk.from(chunk);
-                craftChunk.getHandle().setBlock(location.getBlockX(), location.getBlockY(), location.getBlockZ(), blockData);
-                chunks.add(chunk);
+                int chunkX = loc.getBlockX() >> 4;
+                int chunkZ = loc.getBlockZ() >> 4;
+                ChunkPosition pos = new ChunkPosition(chunkX, chunkZ);
+
+                Pair<IChunkAccess, Chunk> pair = chunkCache.get(pos);
+                if (pair == null) {
+                    Chunk bukkitChunk = loc.getChunk();
+                    CraftChunk craft = CraftChunk.from(bukkitChunk);
+                    pair = Pair.of(craft.getHandle(), bukkitChunk);
+                    chunkCache.put(pos, pair);
+                }
+
+                IChunkAccess handle = pair.left();
+                handle.setBlock(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), data);
             }
 
             if (updateLighting) {
-                LightingService.updateLighting(chunks, false);
+                Set<Chunk> bukkitChunks = new HashSet<>();
+                for (Pair<IChunkAccess, Chunk> pair : chunkCache.values()) {
+                    bukkitChunks.add(pair.right());
+                }
+                LightingService.updateLighting(bukkitChunks, false);
             }
 
-            for (Chunk chunk : chunks) {
-                chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
+            for (Pair<IChunkAccess, Chunk> pair : chunkCache.values()) {
+                Chunk c = pair.right();
+                c.getWorld().refreshChunk(c.getX(), c.getZ());
             }
-
-        }, VIRTUAL_THREAD_EXECUTOR);
+        }, EXECUTOR);
     }
 
-
     public static CompletableFuture<Void> updateLighting(Set<Chunk> chunks) {
-        return CompletableFuture.runAsync(() -> {
-            LightingService.updateLighting(chunks, true);
-        }, VIRTUAL_THREAD_EXECUTOR);
+        return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true), EXECUTOR);
     }
 
     public static CompletableFuture<Void> restoreCuboidSnapshot(CuboidSnapshot snapshot) {
@@ -74,7 +88,7 @@ public class BlockChanger {
             }
 
             LightingService.updateLighting(snapshot.getSnapshots().keySet(), false);
-        }, VIRTUAL_THREAD_EXECUTOR);
+        }, EXECUTOR);
     }
 
     public static int getMinorVersion() {
