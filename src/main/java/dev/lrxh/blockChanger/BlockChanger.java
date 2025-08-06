@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public class BlockChanger {
     private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
@@ -62,18 +63,16 @@ public class BlockChanger {
                 handle.setBlock(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), data);
             }
 
+            Set<Chunk> chunks = chunkCache.values().stream()
+                    .map(Pair::right)
+                    .collect(Collectors.toSet());
+
             if (updateLighting) {
-                Set<Chunk> bukkitChunks = new HashSet<>();
-                for (Pair<IChunkAccess, Chunk> pair : chunkCache.values()) {
-                    bukkitChunks.add(pair.right());
-                }
-                LightingService.updateLighting(bukkitChunks, false);
+                LightingService.updateLighting(chunks, false);
             }
 
-            for (Pair<IChunkAccess, Chunk> pair : chunkCache.values()) {
-                Chunk c = pair.right();
-                c.getWorld().refreshChunk(c.getX(), c.getZ());
-            }
+            chunks.forEach(c -> c.getWorld().refreshChunk(c.getX(), c.getZ()));
+
         }, EXECUTOR);
     }
 
