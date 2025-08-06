@@ -14,7 +14,8 @@ public class ReflectionUtility {
         Class<?> clazz = null;
         try {
             clazz = Class.forName(className);
-        } catch (ClassNotFoundException ignored) {
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Failed to get class", e);
         }
 
         if (clazz != null) {

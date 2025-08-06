@@ -8,8 +8,12 @@ import dev.lrxh.blockChanger.utility.ReflectionUtility;
 import dev.lrxh.blockChanger.wrapper.impl.chunk.CraftChunk;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.Location;
+import org.bukkit.block.data.BlockData;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,13 +35,45 @@ public class BlockChanger {
         chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
     }
 
+    public static CompletableFuture<Void> setBlocks(Map<Location, BlockData> blocks, boolean updateLighting) {
+        return CompletableFuture.runAsync(() -> {
+            Set<Chunk> chunks = new HashSet<>();
+
+            for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
+                Location location = entry.getKey();
+                BlockData blockData = entry.getValue();
+
+                Chunk chunk = location.getChunk();
+                CraftChunk craftChunk = CraftChunk.from(chunk);
+                craftChunk.getHandle().setBlock(location.getBlockX(), location.getBlockY(), location.getBlockZ(), blockData);
+                chunks.add(chunk);
+            }
+
+            if (updateLighting) {
+                LightingService.updateLighting(chunks, false);
+            }
+
+            for (Chunk chunk : chunks) {
+                chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
+            }
+
+        }, VIRTUAL_THREAD_EXECUTOR);
+    }
+
+
+    public static CompletableFuture<Void> updateLighting(Set<Chunk> chunks) {
+        return CompletableFuture.runAsync(() -> {
+            LightingService.updateLighting(chunks, true);
+        }, VIRTUAL_THREAD_EXECUTOR);
+    }
+
     public static CompletableFuture<Void> restoreCuboidSnapshot(CuboidSnapshot snapshot) {
         return CompletableFuture.runAsync(() -> {
             for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
                 restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
             }
 
-            LightingService.updateLighting(snapshot.getSnapshots().keySet());
+            LightingService.updateLighting(snapshot.getSnapshots().keySet(), false);
         }, VIRTUAL_THREAD_EXECUTOR);
     }
 

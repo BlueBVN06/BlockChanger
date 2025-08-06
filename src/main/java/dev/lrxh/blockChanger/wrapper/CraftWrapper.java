@@ -29,13 +29,14 @@ public abstract class CraftWrapper<T> {
 
     protected MethodHandle getMethod(Class<?> clazz, String methodName, Class<?> returnType, Class<?>... parameterTypes) {
         try {
-            MethodHandles.Lookup lookup = MethodHandles.lookup();
             MethodType methodType = MethodType.methodType(returnType, parameterTypes);
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
 
             try {
                 return lookup.findVirtual(clazz, methodName, methodType);
-            } catch (NoSuchMethodException e) {
-                return lookup.findSpecial(clazz, methodName, methodType, clazz);
+            } catch (IllegalAccessException | NoSuchMethodException e) {
+                MethodHandles.Lookup privateLookup = MethodHandles.privateLookupIn(clazz, lookup);
+                return privateLookup.findVirtual(clazz, methodName, methodType);
             }
 
         } catch (NoSuchMethodException | IllegalAccessException e) {

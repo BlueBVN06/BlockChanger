@@ -1,6 +1,8 @@
 package dev.lrxh.blockChanger.wrapper.impl.chunk.impl.v1_21;
 
+import dev.lrxh.blockChanger.wrapper.impl.block.IBlockData;
 import dev.lrxh.blockChanger.wrapper.impl.chunk.IChunkAccess;
+import org.bukkit.block.data.BlockData;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Array;
@@ -53,6 +55,44 @@ public class IChunkAccess_1_21 extends IChunkAccess {
             return copiedSections.toArray(new Object[0]);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to get chunk handle", e);
+        }
+    }
+
+    @Override
+    public void setBlock(int x, int y, int z, BlockData blockData) {
+        try {
+            Object section = getSection(y);
+            IBlockData iBlockData = IBlockData.from(blockData);
+            Class<?> iBlockDataClass = nms("world.level.block.state.IBlockData");
+            MethodHandle setType = getMethod(
+                    section.getClass(),
+                    "a",
+                    iBlockDataClass,
+                    int.class,
+                    int.class,
+                    int.class,
+                    iBlockDataClass
+            );
+
+            int localX = x & 15;
+            int localY = y & 15;
+            int localZ = z & 15;
+
+            setType.invoke(section, localX, localY, localZ, iBlockData.get());
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public Object getSection(int y) {
+        try {
+            Object levelHeightAccessor = nms("world.level.LevelHeightAccessor").cast(get());
+            int sectionIndex = (int) getMethod(levelHeightAccessor.getClass(), "f", int.class, int.class).invoke(levelHeightAccessor, y);
+            Object section = getSections()[sectionIndex];
+            return section;
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to get section", e);
         }
     }
 
