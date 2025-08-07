@@ -18,7 +18,7 @@ Ultra-fast block snapshotting and restoration library, Efficient, high-performan
 
 ### 📥 Add as a Dependency
 
-Include BlockChanger in your project using [JitPack](https://jitpack.io):
+Include BlockChanger in your project using [JitPack](https://jitpack.io/#Devlrxxh/BlockChanger):
 
 #### Maven
 
