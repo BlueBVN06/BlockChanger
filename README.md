@@ -6,10 +6,11 @@ Ultra-fast block snapshotting and restoration library, Efficient, high-performan
 
 ## 🚀 Features
 
-* 📸 **Fast Block Snapshotting** — Capture block data with minimal overhead
-* ♻️ **Instant Restoration** — Restore block snapshots to their original state efficiently
-* ⚡ **High Performance** — Made for speed with minimal usage
-* 🛆 **Lightweight API** — Simple to integrate
+* 📸 **Fast Block Snapshotting** — Quickly take snapshots of block data without slowing things down
+* ♻️ **Instant Restoration** — Restore snapshots back to their original state near instant
+* ⚡ **High Performance** — Made for speed with minimal usage  
+* 🔁 **Fully Asynchronous** — Runs in the background without blocking other tasks
+* 🛆 **Lightweight API** — Simple to integrate  
 
 ---
 
@@ -29,6 +30,7 @@ Include BlockChanger in your project using [JitPack](https://jitpack.io):
     </repository>
 </repositories>
 ```
+
 **Add the dependency:**
 
 ```xml
@@ -57,6 +59,8 @@ dependencies {
 }
 ```
 
+---
+
 ## 📚 Usage
 
 ### 🧱 Create and Restore a Snapshot
@@ -71,3 +75,26 @@ CuboidSnapshot snapshot = new CuboidSnapshot(loc1, loc2);
 
 // Restore the blocks in the cuboid to their original snapshot state
 snapshot.restore();
+```
+
+### 🔄 Set Multiple Blocks At Once
+
+```java
+Map<Location, BlockData> blocks = new HashMap<>();
+
+Location loc = ...;
+BlockData blockData = Material.GOLD_BLOCK.createBlockData();
+
+blocks.put(loc, blockData);
+
+long startTime = System.currentTimeMillis();
+
+// Second parameter is for whether lighting updates should be done
+BlockChanger.setBlocks(blocks, false).thenAccept(unused -> {
+    long endTime = System.currentTimeMillis();
+    long duration = endTime - startTime;
+
+    sender.sendMessage("Blocks placed successfully!");
+    sender.sendMessage("Time taken: " + duration + " ms (" + (duration / 1000.0) + " seconds)");
+});
+```
