@@ -5,8 +5,8 @@ import dev.lrxh.blockChanger.wrapper.impl.world.CraftWorld;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 
+import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Set;
@@ -46,9 +46,10 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
             Object lightEngine = this.get();
             Collection<Object> chunkPositions = new ArrayList<>();
 
-            Method relightMethod = getReflectiveMethod(
+            MethodHandle relightMethod = getMethod(
                     lightEngine.getClass(),
                     "starlight$serverRelightChunks",
+                    int.class,
                     Collection.class,
                     Consumer.class,
                     IntConsumer.class

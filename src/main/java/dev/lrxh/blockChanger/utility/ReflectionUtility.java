@@ -11,16 +11,14 @@ public class ReflectionUtility {
             return cache.get(className);
         }
 
-        Class<?> clazz = null;
+        Class<?> clazz;
         try {
             clazz = Class.forName(className);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Failed to get class", e);
         }
 
-        if (clazz != null) {
-            cache.put(className, clazz);
-        }
+        cache.put(className, clazz);
 
         return clazz;
     }
