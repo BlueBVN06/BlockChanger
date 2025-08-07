@@ -70,11 +70,11 @@ dependencies {
 Location loc1 = ...;
 Location loc2 = ...;
 
-// Create a snapshot of the block states in the region
-CuboidSnapshot snapshot = new CuboidSnapshot(loc1, loc2);
-
-// Restore the blocks in the cuboid to their original snapshot state
-snapshot.restore();
+// Create a snapshot asynchronously
+        CuboidSnapshot.create(loc1, loc2).thenAccept(snapshot -> {
+        // Restore the blocks in the cuboid to their original snapshot state
+        snapshot.restore();
+});
 ```
 
 ### 🔄 Set Multiple Blocks At Once

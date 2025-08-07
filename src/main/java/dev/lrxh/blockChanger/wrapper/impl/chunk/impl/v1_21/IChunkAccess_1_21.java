@@ -48,19 +48,15 @@ public class IChunkAccess_1_21 extends IChunkAccess {
 
     @Override
     public Object[] getSectionsCopy() {
-        try {
-            Object[] sections = getSections();
+        Object[] sections = getSections();
 
-            List<Object> copiedSections = new ArrayList<>(sections.length);
+        List<Object> copiedSections = new ArrayList<>(sections.length);
 
-            for (Object section : sections) {
-                copiedSections.add(copySection(section));
-            }
-
-            return copiedSections.toArray(new Object[0]);
-        } catch (Throwable e) {
-            throw new RuntimeException("Failed to get chunk handle", e);
+        for (Object section : sections) {
+            copiedSections.add(copySection(section));
         }
+
+        return copiedSections.toArray(new Object[0]);
     }
 
     @Override

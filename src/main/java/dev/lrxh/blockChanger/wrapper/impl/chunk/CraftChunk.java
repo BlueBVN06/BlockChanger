@@ -18,8 +18,5 @@ public abstract class CraftChunk extends CraftWrapper<Chunk> {
         };
     }
 
-    @Override
-    protected abstract Object apply(Chunk input);
-
     public abstract IChunkAccess getHandle();
 }

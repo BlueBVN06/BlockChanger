@@ -14,7 +14,11 @@ import java.util.concurrent.CompletableFuture;
 public class CuboidSnapshot {
     private final Map<Chunk, ChunkSectionSnapshot> snapshots;
 
-    public CuboidSnapshot(Location pos1, Location pos2) {
+    private CuboidSnapshot(Map<Chunk, ChunkSectionSnapshot> snapshots) {
+        this.snapshots = Collections.unmodifiableMap(snapshots);
+    }
+
+    public static CompletableFuture<CuboidSnapshot> create(Location pos1, Location pos2) {
         World world = pos1.getWorld();
 
         int minChunkX = Math.min(pos1.getChunk().getX(), pos2.getChunk().getX());
@@ -22,23 +26,29 @@ public class CuboidSnapshot {
         int minChunkZ = Math.min(pos1.getChunk().getZ(), pos2.getChunk().getZ());
         int maxChunkZ = Math.max(pos1.getChunk().getZ(), pos2.getChunk().getZ());
 
-
-        Map<Chunk, ChunkSectionSnapshot> temp = new HashMap<>();
+        List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures = new java.util.ArrayList<>();
 
         for (int x = minChunkX; x <= maxChunkX; x++) {
             for (int z = minChunkZ; z <= maxChunkZ; z++) {
-                Chunk chunk = world.getChunkAt(x, z);
-                ChunkSectionSnapshot snapshot = BlockChanger.createChunkBlockSnapshot(chunk);
-                temp.put(chunk, snapshot);
+                CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future = world.getChunkAtAsync(x, z)
+                        .thenApplyAsync(chunk -> {
+                            ChunkSectionSnapshot snapshot = BlockChanger.createChunkBlockSnapshot(chunk);
+                            return Map.entry(chunk, snapshot);
+                        });
+
+                futures.add(future);
             }
         }
 
-
-        this.snapshots = Collections.unmodifiableMap(temp);
-    }
-
-    private CuboidSnapshot(Map<Chunk, ChunkSectionSnapshot> snapshots) {
-        this.snapshots = Collections.unmodifiableMap(snapshots);
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> {
+                    Map<Chunk, ChunkSectionSnapshot> snapshotMap = new HashMap<>();
+                    for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futures) {
+                        Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
+                        snapshotMap.put(entry.getKey(), entry.getValue());
+                    }
+                    return new CuboidSnapshot(snapshotMap);
+                });
     }
 
     public Map<Chunk, ChunkSectionSnapshot> getSnapshots() {

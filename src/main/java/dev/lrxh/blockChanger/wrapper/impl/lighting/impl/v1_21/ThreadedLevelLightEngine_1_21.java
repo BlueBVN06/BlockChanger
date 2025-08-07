@@ -23,7 +23,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
     protected Object apply(World input) {
         try {
             Class<?> serverLevelClass = nms("server.level.ServerLevel");
-            CraftWorld craftWorld = new CraftWorld(input);
+            CraftWorld craftWorld = CraftWorld.from(input);
             Object world = getMethod(craftWorld.get().getClass(), "getHandle", serverLevelClass)
                     .invoke(craftWorld.get());
 

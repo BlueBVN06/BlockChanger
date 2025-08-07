@@ -16,9 +16,4 @@ public abstract class IBlockData extends CraftWrapper<BlockData> {
             default -> throw new IllegalStateException("Unexpected minor version: " + BlockChanger.getMinorVersion());
         };
     }
-
-    @Override
-    protected Object apply(BlockData input) {
-        return input;
-    }
 }

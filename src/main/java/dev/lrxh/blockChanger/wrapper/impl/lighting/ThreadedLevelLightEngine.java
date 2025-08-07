@@ -20,8 +20,5 @@ public abstract class ThreadedLevelLightEngine extends CraftWrapper<World> {
         };
     }
 
-    @Override
-    protected abstract Object apply(World input);
-
     public abstract void relightChunks(Set<Chunk> chunks);
 }
