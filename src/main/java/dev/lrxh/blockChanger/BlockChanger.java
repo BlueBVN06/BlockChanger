@@ -78,14 +78,18 @@ public class BlockChanger {
         return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true), EXECUTOR);
     }
 
-    public static CompletableFuture<Void> restoreCuboidSnapshot(CuboidSnapshot snapshot) {
+    public static CompletableFuture<Void> restoreCuboidSnapshotAsync(CuboidSnapshot snapshot) {
         return CompletableFuture.runAsync(() -> {
-            for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
-                restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
-            }
-
-            LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
+            restoreCuboidSnapshot(snapshot);
         }, EXECUTOR);
+    }
+
+    public static void restoreCuboidSnapshot(CuboidSnapshot snapshot) {
+        for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
+            restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
+        }
+
+        LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
     }
 
     public static int getMinorVersion() {
@@ -99,8 +103,7 @@ public class BlockChanger {
         MINOR_VERSION = (versionParts.length >= 2) ? Integer.parseInt(versionParts[1]) : 0;
 
         isPaper = ReflectionUtility.getClass(
-                "ca.spottedleaf.moonrise.patches.starlight.light.StarLightLightingProvider"
-        ) != null;
+                "ca.spottedleaf.moonrise.patches.starlight.light.StarLightLightingProvider") != null;
 
         return MINOR_VERSION;
     }
