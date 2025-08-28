@@ -55,8 +55,12 @@ public class CuboidSnapshot {
         return snapshots;
     }
 
-    public CompletableFuture<Void> restore() {
-        return BlockChanger.restoreCuboidSnapshot(this);
+    public CompletableFuture<Void> restoreAsync() {
+        return BlockChanger.restoreCuboidSnapshotAsync(this);
+    }
+
+    public void restore() {
+        BlockChanger.restoreCuboidSnapshot(this);
     }
 
     public CuboidSnapshot clone() {
