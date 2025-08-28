@@ -35,7 +35,6 @@ public class BlockChanger {
     public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot) {
         CraftChunk craftChunk = CraftChunk.from(chunk);
         craftChunk.getHandle().setSections(snapshot.sections());
-        chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
     }
 
     public static CompletableFuture<Void> setBlocks(Map<Location, BlockData> blocks, boolean updateLighting) {
@@ -67,10 +66,10 @@ public class BlockChanger {
                     .collect(Collectors.toSet());
 
             if (updateLighting) {
-                LightingService.updateLighting(chunks, false);
+                LightingService.updateLighting(chunks, true);
+            } else {
+                chunks.forEach(c -> c.getWorld().refreshChunk(c.getX(), c.getZ()));
             }
-
-            chunks.forEach(c -> c.getWorld().refreshChunk(c.getX(), c.getZ()));
 
         }, EXECUTOR);
     }
@@ -85,7 +84,7 @@ public class BlockChanger {
                 restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
             }
 
-            LightingService.updateLighting(snapshot.getSnapshots().keySet(), false);
+            LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
         }, EXECUTOR);
     }
 

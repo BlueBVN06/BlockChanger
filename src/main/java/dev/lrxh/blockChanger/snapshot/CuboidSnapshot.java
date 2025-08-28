@@ -64,42 +64,7 @@ public class CuboidSnapshot {
     }
 
     public CompletableFuture<CuboidSnapshot> offset(int xOffset, int zOffset) {
-        if (snapshots.isEmpty()) {
-            return CompletableFuture.completedFuture(new CuboidSnapshot(Collections.emptyMap()));
-        }
-
-        if (xOffset % 16 != 0 || zOffset % 16 != 0) {
-            throw new IllegalArgumentException("Offsets must be multiples of 16.");
-        }
-
-        int chunkOffsetX = Math.floorDiv(xOffset, 16);
-        int chunkOffsetZ = Math.floorDiv(zOffset, 16);
-
-        World world = snapshots.keySet().iterator().next().getWorld();
-
-        List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futureEntries = snapshots.entrySet().stream()
-                .map(entry -> {
-                    Chunk originalChunk = entry.getKey();
-                    ChunkSectionSnapshot snapshot = entry.getValue();
-
-                    int newChunkX = originalChunk.getX() + chunkOffsetX;
-                    int newChunkZ = originalChunk.getZ() + chunkOffsetZ;
-
-                    return world.getChunkAtAsync(newChunkX, newChunkZ).thenApplyAsync(newChunk ->
-                            Map.entry(newChunk, snapshot)
-                    );
-                })
-                .toList();
-
-        return CompletableFuture.allOf(futureEntries.toArray(new CompletableFuture[0]))
-                .thenApply(v -> {
-                    Map<Chunk, ChunkSectionSnapshot> offsetSnapshots = new HashMap<>(snapshots.size());
-                    for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futureEntries) {
-                        Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
-                        offsetSnapshots.put(entry.getKey(), entry.getValue());
-                    }
-                    return new CuboidSnapshot(offsetSnapshots);
-                });
+        return offset(xOffset, zOffset, new HashMap<>());
     }
 
     public CompletableFuture<CuboidSnapshot> offset(int xOffset, int zOffset, Map<ChunkPosition, Chunk> preloadedChunks) {
