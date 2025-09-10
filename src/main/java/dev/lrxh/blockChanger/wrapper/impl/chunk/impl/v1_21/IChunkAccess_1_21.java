@@ -94,7 +94,7 @@ public class IChunkAccess_1_21 extends IChunkAccess {
             Object levelHeightAccessor = nms("world.level.LevelHeightAccessor").cast(get());
             int sectionIndex = (int) getMethod(levelHeightAccessor.getClass(), "f", int.class, int.class).invoke(levelHeightAccessor, y);
             Object section = getSections()[sectionIndex];
-            sections.put(sectionIndex, section);
+            sections.put(y, section);
             return section;
         } catch (Throwable e) {
             throw new RuntimeException("Failed to get section", e);
