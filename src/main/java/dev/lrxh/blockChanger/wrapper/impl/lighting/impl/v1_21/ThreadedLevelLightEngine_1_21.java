@@ -28,7 +28,7 @@ public class ThreadedLevelLightEngine_1_21 extends ThreadedLevelLightEngine {
                     .invoke(craftWorld.get());
 
             Class<?> chunkProviderClass = nms("server.level.ChunkProviderServer");
-            Object chunkProvider = getMethod(world.getClass(), "m", chunkProviderClass)
+            Object chunkProvider = getMethod(world.getClass(), "n", chunkProviderClass)
                     .invoke(world);
 
             Class<?> lightEngineClass = nms("server.level.ThreadedLevelLightEngine");
