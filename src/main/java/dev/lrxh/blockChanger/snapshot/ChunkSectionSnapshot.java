@@ -1,4 +1,7 @@
 package dev.lrxh.blockChanger.snapshot;
 
-public record ChunkSectionSnapshot(Object[] sections, ChunkPosition position) {
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+
+public record ChunkSectionSnapshot(LevelChunkSection[] sections, ChunkPos position) {
 }
