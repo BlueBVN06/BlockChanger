@@ -12,10 +12,12 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class CuboidSnapshot {
+
   private final Map<Chunk, ChunkSectionSnapshot> snapshots;
 
   private CuboidSnapshot(Map<Chunk, ChunkSectionSnapshot> snapshots) {
     this.snapshots = Collections.unmodifiableMap(snapshots);
+    snapshots.values().forEach(SnapshotService::addSnapshot);
   }
 
   public static CompletableFuture<CuboidSnapshot> create(Location pos1, Location pos2) {
@@ -33,6 +35,7 @@ public class CuboidSnapshot {
         CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future = world.getChunkAtAsync(x, z)
           .thenApplyAsync(chunk -> {
             ChunkSectionSnapshot snapshot = BlockChanger.createChunkBlockSnapshot(chunk);
+            SnapshotService.addSnapshot(snapshot);
             return Map.entry(chunk, snapshot);
           });
 
@@ -112,6 +115,7 @@ public class CuboidSnapshot {
         for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futureEntries) {
           Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
           offsetSnapshots.put(entry.getKey(), entry.getValue());
+          SnapshotService.addSnapshot(entry.getValue());
         }
         return new CuboidSnapshot(offsetSnapshots);
       });

@@ -1,6 +1,7 @@
 package dev.lrxh.blockChanger;
 
 import dev.lrxh.blockChanger.lighting.LightingService;
+import dev.lrxh.blockChanger.snapshot.ChunkListener;
 import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import it.unimi.dsi.fastutil.Pair;
@@ -10,12 +11,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
-import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.craftbukkit.CraftChunk;
 import org.bukkit.craftbukkit.block.data.CraftBlockData;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -25,7 +26,12 @@ import java.util.stream.Collectors;
 
 public class BlockChanger {
   private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
-  public static int MINOR_VERSION;
+  private static JavaPlugin plugin;
+
+  public static void initialize(JavaPlugin plugin) {
+    BlockChanger.plugin = plugin;
+    plugin.getServer().getPluginManager().registerEvents(new ChunkListener(), plugin);
+  }
 
   public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
     ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
@@ -111,18 +117,5 @@ public class BlockChanger {
     }
 
     LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
-  }
-
-  public static int getMinorVersion() {
-    if (MINOR_VERSION != 0) {
-      return MINOR_VERSION;
-    }
-
-    String version = Bukkit.getServer().getBukkitVersion().split("-")[0];
-    String[] versionParts = version.split("\\.");
-
-    MINOR_VERSION = (versionParts.length >= 2) ? Integer.parseInt(versionParts[1]) : 0;
-
-    return MINOR_VERSION;
   }
 }

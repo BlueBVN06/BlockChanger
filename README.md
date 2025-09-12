@@ -63,6 +63,12 @@ dependencies {
 
 ## 📚 Usage
 
+### 📥 Setup
+
+```java
+BlockChanger.initialize(pluginInstance);
+```
+
 ### 🧱 Create and Restore a Snapshot
 
 ```java
