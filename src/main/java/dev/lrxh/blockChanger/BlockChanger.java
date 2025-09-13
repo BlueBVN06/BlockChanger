@@ -26,15 +26,14 @@ import java.util.stream.Collectors;
 
 public class BlockChanger {
   private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
-  private static JavaPlugin plugin;
 
   public static void initialize(JavaPlugin plugin) {
-    BlockChanger.plugin = plugin;
     plugin.getServer().getPluginManager().registerEvents(new ChunkListener(), plugin);
   }
 
   public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
-    ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
+    CraftChunk craftChunk = (CraftChunk) chunk;
+    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
     ChunkPos position = chunkAccess.getPos();
 
     LevelChunkSection[] sections = chunkAccess.getSections();
@@ -47,10 +46,15 @@ public class BlockChanger {
   }
 
   public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot) {
-    ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
+    CraftChunk craftChunk = (CraftChunk) chunk;
 
-    LevelChunkSection[] currentSections = chunkAccess.getSections();
+    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
     LevelChunkSection[] newSections = snapshot.sections();
+    setSections(chunkAccess, newSections, true);
+  }
+
+  private static void setSections(ChunkAccess chunkAccess, LevelChunkSection[] newSections, boolean copy) {
+    LevelChunkSection[] currentSections = chunkAccess.getSections();
 
     if (currentSections.length != newSections.length) {
       throw new IllegalArgumentException("Section count mismatch: expected "
@@ -58,7 +62,14 @@ public class BlockChanger {
     }
 
     for (int i = 0; i < currentSections.length; i++) {
-      currentSections[i] = newSections[i].copy();
+      LevelChunkSection section = currentSections[i];
+      LevelChunkSection newSection = newSections[i];
+
+      if (section.hasOnlyAir() && newSection.hasOnlyAir()) {
+        continue;
+      }
+
+      currentSections[i] = copy ? newSection.copy() : newSection;
     }
   }
 

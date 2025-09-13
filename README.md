@@ -8,9 +8,9 @@ Ultra-fast block snapshotting and restoration library, Efficient, high-performan
 
 * 📸 **Fast Block Snapshotting** — Quickly take snapshots of block data without slowing things down
 * ♻️ **Instant Restoration** — Restore snapshots back to their original state near instant
-* ⚡ **High Performance** — Made for speed with minimal usage  
+* ⚡ **High Performance** — Made for speed with minimal usage
 * 🔁 **Fully Asynchronous** — Runs in the background without blocking other tasks
-* 🛆 **Lightweight API** — Simple to integrate  
+* 🛆 **Lightweight API** — Simple to integrate
 
 ---
 
