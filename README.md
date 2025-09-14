@@ -79,7 +79,8 @@ Location loc2 = ...;
 // Create a snapshot asynchronously
         CuboidSnapshot.create(loc1, loc2).thenAccept(snapshot -> {
         // Restore the blocks in the cuboid to their original snapshot state
-        snapshot.restore();
+        // Parameter is for if entites should be cleared
+        snapshot.restore(true);
 });
 ```
 
