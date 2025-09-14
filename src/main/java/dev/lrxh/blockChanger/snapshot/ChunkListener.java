@@ -11,7 +11,7 @@ public class ChunkListener implements Listener {
     ChunkSectionSnapshot snapshot = SnapshotService.getSnapshot(
         new net.minecraft.world.level.ChunkPos(event.getChunk().getX(), event.getChunk().getZ()));
     if (snapshot != null) {
-      BlockChanger.restoreChunkBlockSnapshot(event.getChunk(), snapshot, false);
+      BlockChanger.restoreChunkBlockSnapshot(event.getChunk(), snapshot, true);
     }
   }
 }

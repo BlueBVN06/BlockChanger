@@ -6,9 +6,13 @@ import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import it.unimi.dsi.fastutil.Pair;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
@@ -46,19 +50,29 @@ public class BlockChanger {
     return new ChunkSectionSnapshot(copiedSections.toArray(new LevelChunkSection[0]), position);
   }
 
-  public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntites) {
+  public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntities) {
     CraftChunk craftChunk = (CraftChunk) chunk;
-
     ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FEATURES);
+
+    if (clearEntities) {
+      int chunkX = chunk.getX();
+      int chunkZ = chunk.getZ();
+
+      for (Entity entity : craftChunk.getCraftWorld().getHandle().moonrise$getEntityLookup().getAll()) {
+        if (entity instanceof Player)
+          continue;
+
+        int entityChunkX = (int) Math.floor(entity.getX()) >> 4;
+        int entityChunkZ = (int) Math.floor(entity.getZ()) >> 4;
+
+        if (entityChunkX == chunkX && entityChunkZ == chunkZ) {
+          entity.remove(Entity.RemovalReason.DISCARDED);
+        }
+      }
+    }
+
     LevelChunkSection[] newSections = snapshot.sections();
     setSections(chunkAccess, newSections, true);
-    if (clearEntites)
-      clearEntites((ProtoChunk) chunkAccess);
-  }
-
-  private static void clearEntites(ProtoChunk pChunk) {
-    pChunk.getEntities().clear();
-    pChunk.blockEntities.clear();
   }
 
   private static void setSections(ChunkAccess chunkAccess, LevelChunkSection[] newSections, boolean copy) {
