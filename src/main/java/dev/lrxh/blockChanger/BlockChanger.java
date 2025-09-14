@@ -33,14 +33,14 @@ public class BlockChanger {
 
   public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
     CraftChunk craftChunk = (CraftChunk) chunk;
-    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
+    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FEATURES);
     ChunkPos position = chunkAccess.getPos();
 
     LevelChunkSection[] sections = chunkAccess.getSections();
 
     List<LevelChunkSection> copiedSections = Arrays.stream(sections)
-      .map(LevelChunkSection::copy)
-      .toList();
+        .map(LevelChunkSection::copy)
+        .toList();
 
     return new ChunkSectionSnapshot(copiedSections.toArray(new LevelChunkSection[0]), position);
   }
@@ -48,7 +48,7 @@ public class BlockChanger {
   public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot) {
     CraftChunk craftChunk = (CraftChunk) chunk;
 
-    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
+    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FEATURES);
     LevelChunkSection[] newSections = snapshot.sections();
     setSections(chunkAccess, newSections, true);
   }
@@ -58,7 +58,7 @@ public class BlockChanger {
 
     if (currentSections.length != newSections.length) {
       throw new IllegalArgumentException("Section count mismatch: expected "
-        + currentSections.length + ", but got " + newSections.length);
+          + currentSections.length + ", but got " + newSections.length);
     }
 
     for (int i = 0; i < currentSections.length; i++) {
@@ -88,7 +88,7 @@ public class BlockChanger {
         Pair<ChunkAccess, Chunk> pair = chunkCache.get(pos);
         if (pair == null) {
           Chunk chunk = loc.getChunk();
-          ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
+          ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FEATURES);
           pair = Pair.of(chunkAccess, chunk);
           chunkCache.put(pos, pair);
         }
@@ -100,8 +100,8 @@ public class BlockChanger {
       }
 
       Set<Chunk> chunks = chunkCache.values().stream()
-        .map(Pair::right)
-        .collect(Collectors.toSet());
+          .map(Pair::right)
+          .collect(Collectors.toSet());
 
       if (updateLighting) {
         LightingService.updateLighting(chunks, true);
