@@ -10,6 +10,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -45,12 +46,19 @@ public class BlockChanger {
     return new ChunkSectionSnapshot(copiedSections.toArray(new LevelChunkSection[0]), position);
   }
 
-  public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot) {
+  public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntites) {
     CraftChunk craftChunk = (CraftChunk) chunk;
 
     ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FEATURES);
     LevelChunkSection[] newSections = snapshot.sections();
     setSections(chunkAccess, newSections, true);
+    if (clearEntites)
+      clearEntites((ProtoChunk) chunkAccess);
+  }
+
+  private static void clearEntites(ProtoChunk pChunk) {
+    pChunk.getEntities().clear();
+    pChunk.blockEntities.clear();
   }
 
   private static void setSections(ChunkAccess chunkAccess, LevelChunkSection[] newSections, boolean copy) {
@@ -116,15 +124,15 @@ public class BlockChanger {
     return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true), EXECUTOR);
   }
 
-  public static CompletableFuture<Void> restoreCuboidSnapshotAsync(CuboidSnapshot snapshot) {
+  public static CompletableFuture<Void> restoreCuboidSnapshotAsync(CuboidSnapshot snapshot, boolean clearEntites) {
     return CompletableFuture.runAsync(() -> {
-      restoreCuboidSnapshot(snapshot);
+      restoreCuboidSnapshot(snapshot, clearEntites);
     }, EXECUTOR);
   }
 
-  public static void restoreCuboidSnapshot(CuboidSnapshot snapshot) {
+  public static void restoreCuboidSnapshot(CuboidSnapshot snapshot, boolean clearEntites) {
     for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
-      restoreChunkBlockSnapshot(entry.getKey(), entry.getValue());
+      restoreChunkBlockSnapshot(entry.getKey(), entry.getValue(), clearEntites);
     }
 
     LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
