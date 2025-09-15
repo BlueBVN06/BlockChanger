@@ -7,14 +7,11 @@ import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import it.unimi.dsi.fastutil.Pair;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
-import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -33,7 +30,7 @@ public class BlockChanger {
   private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
   public static void initialize(JavaPlugin plugin) {
-    plugin.getServer().getPluginManager().registerEvents(new ChunkListener(), plugin);
+    plugin.getServer().getPluginManager().registerEvents(new ChunkListener(plugin), plugin);
   }
 
   public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
@@ -48,6 +45,14 @@ public class BlockChanger {
         .toList();
 
     return new ChunkSectionSnapshot(copiedSections.toArray(new LevelChunkSection[0]), position);
+  }
+
+  public static CompletableFuture<Void> restoreChunkBlockSnapshotAsync(Chunk chunk, ChunkSectionSnapshot snapshot,
+      boolean clearEntities) {
+    return CompletableFuture.runAsync(() -> {
+      restoreChunkBlockSnapshot(chunk, snapshot, clearEntities);
+      ;
+    }, EXECUTOR);
   }
 
   public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntities) {
