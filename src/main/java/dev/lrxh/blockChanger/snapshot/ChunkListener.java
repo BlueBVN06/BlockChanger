@@ -1,6 +1,8 @@
 package dev.lrxh.blockChanger.snapshot;
 
 import dev.lrxh.blockChanger.BlockChanger;
+import net.minecraft.world.level.ChunkPos;
+
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -17,12 +19,15 @@ public class ChunkListener implements Listener {
 
   @EventHandler(priority = EventPriority.MONITOR)
   public void onChunkLoad(ChunkLoadEvent event) {
+    QueuedChunkSnapshot queuedChunkSnapshot = SnapshotService.getSnapshot(
+        new ChunkPos(event.getChunk().getX(), event.getChunk().getZ()));
+
+    if (queuedChunkSnapshot == null)
+      return;
+    if (event.getChunk().getWorld().getName() != queuedChunkSnapshot.worldName())
+      return;
     Bukkit.getScheduler().runTask(plugin, () -> {
-      ChunkSectionSnapshot snapshot = SnapshotService.getSnapshot(
-          new net.minecraft.world.level.ChunkPos(event.getChunk().getX(), event.getChunk().getZ()));
-      if (snapshot != null) {
-        BlockChanger.restoreChunkBlockSnapshotAsync(event.getChunk(), snapshot, true);
-      }
+      BlockChanger.restoreChunkBlockSnapshotAsync(event.getChunk(), queuedChunkSnapshot.snapshot(), true);
     });
   }
 }
