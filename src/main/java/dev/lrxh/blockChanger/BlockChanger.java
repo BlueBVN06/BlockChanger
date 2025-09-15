@@ -35,7 +35,7 @@ public class BlockChanger {
 
   public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
     CraftChunk craftChunk = (CraftChunk) chunk;
-    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FEATURES);
+    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
     ChunkPos position = chunkAccess.getPos();
 
     LevelChunkSection[] sections = chunkAccess.getSections();
@@ -57,7 +57,7 @@ public class BlockChanger {
 
   public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntities) {
     CraftChunk craftChunk = (CraftChunk) chunk;
-    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FEATURES);
+    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
 
     if (clearEntities) {
       int chunkX = chunk.getX();
@@ -115,7 +115,7 @@ public class BlockChanger {
         Pair<ChunkAccess, Chunk> pair = chunkCache.get(pos);
         if (pair == null) {
           Chunk chunk = loc.getChunk();
-          ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FEATURES);
+          ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
           pair = Pair.of(chunkAccess, chunk);
           chunkCache.put(pos, pair);
         }
