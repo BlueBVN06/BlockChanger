@@ -41,17 +41,16 @@ public class BlockChanger {
     LevelChunkSection[] sections = chunkAccess.getSections();
 
     List<LevelChunkSection> copiedSections = Arrays.stream(sections)
-        .map(LevelChunkSection::copy)
-        .toList();
+      .map(LevelChunkSection::copy)
+      .toList();
 
     return new ChunkSectionSnapshot(copiedSections.toArray(new LevelChunkSection[0]), position);
   }
 
   public static CompletableFuture<Void> restoreChunkBlockSnapshotAsync(Chunk chunk, ChunkSectionSnapshot snapshot,
-      boolean clearEntities) {
+                                                                       boolean clearEntities) {
     return CompletableFuture.runAsync(() -> {
       restoreChunkBlockSnapshot(chunk, snapshot, clearEntities);
-      ;
     }, EXECUTOR);
   }
 
@@ -85,7 +84,7 @@ public class BlockChanger {
 
     if (currentSections.length != newSections.length) {
       throw new IllegalArgumentException("Section count mismatch: expected "
-          + currentSections.length + ", but got " + newSections.length);
+        + currentSections.length + ", but got " + newSections.length);
     }
 
     for (int i = 0; i < currentSections.length; i++) {
@@ -127,8 +126,8 @@ public class BlockChanger {
       }
 
       Set<Chunk> chunks = chunkCache.values().stream()
-          .map(Pair::right)
-          .collect(Collectors.toSet());
+        .map(Pair::right)
+        .collect(Collectors.toSet());
 
       if (updateLighting) {
         LightingService.updateLighting(chunks, true);

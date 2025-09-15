@@ -37,26 +37,26 @@ public class CuboidSnapshot {
     for (int x = minChunkX; x <= maxChunkX; x++) {
       for (int z = minChunkZ; z <= maxChunkZ; z++) {
         CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future = world.getChunkAtAsync(x, z)
-            .thenApplyAsync(chunk -> {
-              ChunkSectionSnapshot snapshot = BlockChanger.createChunkBlockSnapshot(chunk);
+          .thenApplyAsync(chunk -> {
+            ChunkSectionSnapshot snapshot = BlockChanger.createChunkBlockSnapshot(chunk);
 
-              SnapshotService.addSnapshot(snapshot, chunk.getWorld());
-              return Map.entry(chunk, snapshot);
-            });
+            SnapshotService.addSnapshot(snapshot, chunk.getWorld());
+            return Map.entry(chunk, snapshot);
+          });
 
         futures.add(future);
       }
     }
 
     return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-        .thenApply(v -> {
-          Map<Chunk, ChunkSectionSnapshot> snapshotMap = new HashMap<>();
-          for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futures) {
-            Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
-            snapshotMap.put(entry.getKey(), entry.getValue());
-          }
-          return new CuboidSnapshot(snapshotMap);
-        });
+      .thenApply(v -> {
+        Map<Chunk, ChunkSectionSnapshot> snapshotMap = new HashMap<>();
+        for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futures) {
+          Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
+          snapshotMap.put(entry.getKey(), entry.getValue());
+        }
+        return new CuboidSnapshot(snapshotMap);
+      });
   }
 
   public Map<Chunk, ChunkSectionSnapshot> getSnapshots() {
@@ -92,39 +92,39 @@ public class CuboidSnapshot {
     int chunkOffsetZ = zOffset / 16;
 
     List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futureEntries = snapshots.entrySet().stream()
-        .map(entry -> {
-          Chunk originalChunk = entry.getKey();
-          ChunkSectionSnapshot snapshot = entry.getValue();
+      .map(entry -> {
+        Chunk originalChunk = entry.getKey();
+        ChunkSectionSnapshot snapshot = entry.getValue();
 
-          int newX = originalChunk.getX() + chunkOffsetX;
-          int newZ = originalChunk.getZ() + chunkOffsetZ;
-          ChunkPosition newPos = new ChunkPosition(newX, newZ);
+        int newX = originalChunk.getX() + chunkOffsetX;
+        int newZ = originalChunk.getZ() + chunkOffsetZ;
+        ChunkPosition newPos = new ChunkPosition(newX, newZ);
 
-          Chunk preloadedChunk = preloadedChunks.get(newPos);
+        Chunk preloadedChunk = preloadedChunks.get(newPos);
 
-          CompletableFuture<Chunk> chunkFuture;
+        CompletableFuture<Chunk> chunkFuture;
 
-          if (preloadedChunk != null) {
-            chunkFuture = CompletableFuture.completedFuture(preloadedChunk);
-          } else {
-            chunkFuture = originalChunk.getWorld().getChunkAtAsync(newX, newZ);
-          }
+        if (preloadedChunk != null) {
+          chunkFuture = CompletableFuture.completedFuture(preloadedChunk);
+        } else {
+          chunkFuture = originalChunk.getWorld().getChunkAtAsync(newX, newZ);
+        }
 
-          return chunkFuture.thenApply(chunk -> Map.entry(chunk, snapshot));
-        })
-        .toList();
+        return chunkFuture.thenApply(chunk -> Map.entry(chunk, snapshot));
+      })
+      .toList();
 
     ConcurrentHashMap<Chunk, ChunkSectionSnapshot> offsetSnapshots = new ConcurrentHashMap<>(
-        snapshots.size());
+      snapshots.size());
 
     CompletableFuture<?>[] consumers = futureEntries.stream()
-        .map(fut -> fut.thenAccept(entry -> {
-          offsetSnapshots.put(entry.getKey(), entry.getValue());
-          SnapshotService.addSnapshot(entry.getValue(), entry.getKey().getWorld());
-        }))
-        .toArray(CompletableFuture<?>[]::new);
+      .map(fut -> fut.thenAccept(entry -> {
+        offsetSnapshots.put(entry.getKey(), entry.getValue());
+        SnapshotService.addSnapshot(entry.getValue(), entry.getKey().getWorld());
+      }))
+      .toArray(CompletableFuture<?>[]::new);
 
     return CompletableFuture.allOf(consumers)
-        .thenApply(ignored -> new CuboidSnapshot(offsetSnapshots));
+      .thenApply(ignored -> new CuboidSnapshot(offsetSnapshots));
   }
 }

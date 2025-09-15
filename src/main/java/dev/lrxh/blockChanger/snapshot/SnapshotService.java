@@ -1,10 +1,9 @@
 package dev.lrxh.blockChanger.snapshot;
 
 import net.minecraft.world.level.ChunkPos;
+import org.bukkit.World;
 
 import java.util.HashMap;
-
-import org.bukkit.World;
 
 public class SnapshotService {
   private static final HashMap<ChunkPos, QueuedChunkSnapshot> chunkSnapshots = new HashMap<>();
@@ -17,7 +16,7 @@ public class SnapshotService {
     if (chunkSnapshots.containsKey(position)) {
       return chunkSnapshots.remove(position);
     }
-    
+
     return null;
   }
 }
