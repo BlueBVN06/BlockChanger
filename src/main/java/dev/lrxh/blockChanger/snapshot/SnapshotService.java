@@ -17,6 +17,7 @@ public class SnapshotService {
     if (chunkSnapshots.containsKey(position)) {
       return chunkSnapshots.remove(position);
     }
+    
     return null;
   }
 }
