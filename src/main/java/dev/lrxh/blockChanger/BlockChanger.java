@@ -59,6 +59,8 @@ public class BlockChanger {
     ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
 
     if (clearEntities) {
+      chunkAccess.blockEntities.clear();
+
       int chunkX = chunk.getX();
       int chunkZ = chunk.getZ();
 
