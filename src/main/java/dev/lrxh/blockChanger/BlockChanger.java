@@ -25,9 +25,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class BlockChanger {
-  private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+  public static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
   public static void initialize(JavaPlugin plugin) {
     plugin.getServer().getPluginManager().registerEvents(new ChunkListener(plugin), plugin);
@@ -39,19 +40,20 @@ public class BlockChanger {
     ChunkPos position = chunkAccess.getPos();
 
     LevelChunkSection[] sections = chunkAccess.getSections();
+    LevelChunkSection[] copiedSections = new LevelChunkSection[sections.length];
 
-    List<LevelChunkSection> copiedSections = Arrays.stream(sections)
-      .map(LevelChunkSection::copy)
-      .toList();
+    for (int i = 0; i < sections.length; i++) {
+      LevelChunkSection section = sections[i];
+      copiedSections[i] = (section != null) ? section.copy() : null;
+    }
 
-    return new ChunkSectionSnapshot(copiedSections.toArray(new LevelChunkSection[0]), position);
+    return new ChunkSectionSnapshot(copiedSections, position);
   }
+
 
   public static CompletableFuture<Void> restoreChunkBlockSnapshotAsync(Chunk chunk, ChunkSectionSnapshot snapshot,
                                                                        boolean clearEntities) {
-    return CompletableFuture.runAsync(() -> {
-      restoreChunkBlockSnapshot(chunk, snapshot, clearEntities);
-    }, EXECUTOR);
+    return CompletableFuture.runAsync(() -> restoreChunkBlockSnapshot(chunk, snapshot, clearEntities), EXECUTOR);
   }
 
   public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntities) {
@@ -89,42 +91,49 @@ public class BlockChanger {
         + currentSections.length + ", but got " + newSections.length);
     }
 
-    for (int i = 0; i < currentSections.length; i++) {
+    IntStream.range(0, currentSections.length).parallel().forEach(i -> {
       LevelChunkSection section = currentSections[i];
       LevelChunkSection newSection = newSections[i];
 
-      if (section.hasOnlyAir() && newSection.hasOnlyAir()) {
-        continue;
-      }
+      if ((section == null || section.hasOnlyAir()) &&
+        (newSection == null || newSection.hasOnlyAir())) return;
 
-      currentSections[i] = copy ? newSection.copy() : newSection;
-    }
+      currentSections[i] = (copy && newSection != null) ? newSection.copy() : newSection;
+    });
   }
+
 
   public static CompletableFuture<Void> setBlocks(Map<Location, BlockData> blocks, boolean updateLighting) {
     return CompletableFuture.runAsync(() -> {
-      Map<ChunkPos, Pair<ChunkAccess, Chunk>> chunkCache = new HashMap<>();
+      if (blocks == null || blocks.isEmpty()) return;
 
-      for (Map.Entry<Location, BlockData> entry : blocks.entrySet()) {
-        Location loc = entry.getKey();
-        BlockData data = entry.getValue();
+      int expectedChunks = Math.max(4, blocks.size() / 64);
+      Map<Long, Pair<ChunkAccess, Chunk>> chunkCache = new HashMap<>(expectedChunks, 0.9f);
 
-        int chunkX = loc.getBlockX() >> 4;
-        int chunkZ = loc.getBlockZ() >> 4;
-        ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+      Map<BlockData, List<Location>> grouped = new IdentityHashMap<>();
+      for (Map.Entry<Location, BlockData> e : blocks.entrySet()) {
+        grouped.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(e.getKey());
+      }
 
-        Pair<ChunkAccess, Chunk> pair = chunkCache.get(pos);
-        if (pair == null) {
-          Chunk chunk = loc.getChunk();
-          ChunkAccess chunkAccess = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
-          pair = Pair.of(chunkAccess, chunk);
-          chunkCache.put(pos, pair);
+      BlockPos.MutableBlockPos mpos = new BlockPos.MutableBlockPos();
+
+      for (Map.Entry<BlockData, List<Location>> entry : grouped.entrySet()) {
+        BlockState nmsState = ((CraftBlockData) entry.getKey()).getState();
+
+        for (Location loc : entry.getValue()) {
+          int chunkX = loc.getBlockX() >> 4;
+          int chunkZ = loc.getBlockZ() >> 4;
+          long key = (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
+
+          Pair<ChunkAccess, Chunk> pair = chunkCache.computeIfAbsent(key, k -> {
+            Chunk chunk = loc.getChunk();
+            ChunkAccess access = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
+            return Pair.of(access, chunk);
+          });
+
+          mpos.set(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+          pair.left().setBlockState(mpos, nmsState);
         }
-
-        ChunkAccess handle = pair.left();
-        BlockPos blockPos = new BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
-        BlockState nmsData = ((CraftBlockData) data).getState();
-        handle.setBlockState(blockPos, nmsData);
       }
 
       Set<Chunk> chunks = chunkCache.values().stream()
@@ -136,23 +145,21 @@ public class BlockChanger {
       } else {
         chunks.forEach(c -> c.getWorld().refreshChunk(c.getX(), c.getZ()));
       }
-
     }, EXECUTOR);
   }
+
 
   public static CompletableFuture<Void> updateLighting(Set<Chunk> chunks) {
     return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true), EXECUTOR);
   }
 
   public static CompletableFuture<Void> restoreCuboidSnapshotAsync(CuboidSnapshot snapshot, boolean clearEntites) {
-    return CompletableFuture.runAsync(() -> {
-      restoreCuboidSnapshot(snapshot, clearEntites);
-    }, EXECUTOR);
+    return CompletableFuture.runAsync(() -> restoreCuboidSnapshot(snapshot, clearEntites), EXECUTOR);
   }
 
-  public static void restoreCuboidSnapshot(CuboidSnapshot snapshot, boolean clearEntites) {
+  public static void restoreCuboidSnapshot(CuboidSnapshot snapshot, boolean clearEntities) {
     for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
-      restoreChunkBlockSnapshot(entry.getKey(), entry.getValue(), clearEntites);
+      restoreChunkBlockSnapshot(entry.getKey(), entry.getValue(), clearEntities);
     }
 
     LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
