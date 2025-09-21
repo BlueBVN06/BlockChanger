@@ -10,25 +10,27 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+@SuppressWarnings("unused")
+
 public class CuboidSnapshot {
 
   private final Map<Chunk, ChunkSectionSnapshot> snapshots;
 
-  private CuboidSnapshot(Map<Chunk, ChunkSectionSnapshot> snapshots) {
+  private CuboidSnapshot(final Map<Chunk, ChunkSectionSnapshot> snapshots) {
     this.snapshots = Collections.unmodifiableMap(snapshots);
 
     snapshots.forEach((chunk, snapshot) -> SnapshotService.addSnapshot(snapshot, chunk.getWorld()));
   }
 
-  public static CompletableFuture<CuboidSnapshot> create(Location pos1, Location pos2) {
-    World world = pos1.getWorld();
+  public static CompletableFuture<CuboidSnapshot> create(final Location pos1, final Location pos2) {
+    final World world = pos1.getWorld();
 
-    int minChunkX = Math.min(pos1.getChunk().getX(), pos2.getChunk().getX());
-    int maxChunkX = Math.max(pos1.getChunk().getX(), pos2.getChunk().getX());
-    int minChunkZ = Math.min(pos1.getChunk().getZ(), pos2.getChunk().getZ());
-    int maxChunkZ = Math.max(pos1.getChunk().getZ(), pos2.getChunk().getZ());
+    final int minChunkX = Math.min(pos1.getChunk().getX(), pos2.getChunk().getX());
+    final int maxChunkX = Math.max(pos1.getChunk().getX(), pos2.getChunk().getX());
+    final int minChunkZ = Math.min(pos1.getChunk().getZ(), pos2.getChunk().getZ());
+    final int maxChunkZ = Math.max(pos1.getChunk().getZ(), pos2.getChunk().getZ());
 
-    int totalChunks = (maxChunkX - minChunkX + 1) * (maxChunkZ - minChunkZ + 1);
+    final int totalChunks = (maxChunkX - minChunkX + 1) * (maxChunkZ - minChunkZ + 1);
 
     return loadChunksAndSnapshots(totalChunks, (x, z) -> world.getChunkAtAsync(x, z)
         .thenApplyAsync(chunk -> Map.entry(chunk, BlockChanger.createChunkBlockSnapshot(chunk)), BlockChanger.EXECUTOR),
@@ -37,11 +39,11 @@ public class CuboidSnapshot {
   }
 
   private static CompletableFuture<CuboidSnapshot> loadChunksAndSnapshots(
-    int totalChunks,
-    BiFunction<Integer, Integer, CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> loader,
-    int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ) {
+    final int totalChunks,
+    final BiFunction<Integer, Integer, CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> loader,
+    final int minChunkX, final int maxChunkX, final int minChunkZ, final int maxChunkZ) {
 
-    List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures = new ArrayList<>(totalChunks);
+    final List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures = new ArrayList<>(totalChunks);
 
     for (int x = minChunkX; x <= maxChunkX; x++) {
       for (int z = minChunkZ; z <= maxChunkZ; z++) {
@@ -53,13 +55,13 @@ public class CuboidSnapshot {
   }
 
   private static CompletableFuture<CuboidSnapshot> combineFutures(
-    List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures) {
+    final List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures) {
 
     return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
       .thenApply(v -> {
-        Map<Chunk, ChunkSectionSnapshot> result = new HashMap<>(futures.size(), 0.9f);
-        for (CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futures) {
-          Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
+        final Map<Chunk, ChunkSectionSnapshot> result = new HashMap<>(futures.size(), 0.9f);
+        for (final CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>> future : futures) {
+          final Map.Entry<Chunk, ChunkSectionSnapshot> entry = future.join();
           result.put(entry.getKey(), entry.getValue());
         }
         return new CuboidSnapshot(result);
@@ -70,11 +72,11 @@ public class CuboidSnapshot {
     return snapshots;
   }
 
-  public CompletableFuture<Void> restoreAsync(boolean clearEntities) {
+  public CompletableFuture<Void> restoreAsync(final boolean clearEntities) {
     return BlockChanger.restoreCuboidSnapshotAsync(this, clearEntities);
   }
 
-  public void restore(boolean clearEntities) {
+  public void restore(final boolean clearEntities) {
     BlockChanger.restoreCuboidSnapshot(this, clearEntities);
   }
 
@@ -83,11 +85,11 @@ public class CuboidSnapshot {
     return new CuboidSnapshot(new HashMap<>(snapshots));
   }
 
-  public CompletableFuture<CuboidSnapshot> offset(int xOffset, int zOffset) {
+  public CompletableFuture<CuboidSnapshot> offset(final int xOffset, final int zOffset) {
     return offset(xOffset, zOffset, new HashMap<>());
   }
 
-  public CompletableFuture<CuboidSnapshot> offset(int xOffset, int zOffset, Map<ChunkPosition, Chunk> preloadedChunks) {
+  public CompletableFuture<CuboidSnapshot> offset(final int xOffset, final int zOffset, final Map<ChunkPosition, Chunk> preloadedChunks) {
     if (snapshots.isEmpty()) {
       return CompletableFuture.completedFuture(new CuboidSnapshot(Collections.emptyMap()));
     }
@@ -96,21 +98,21 @@ public class CuboidSnapshot {
       throw new IllegalArgumentException("Offsets must be multiples of 16.");
     }
 
-    int chunkOffsetX = xOffset / 16;
-    int chunkOffsetZ = zOffset / 16;
+    final int chunkOffsetX = xOffset / 16;
+    final int chunkOffsetZ = zOffset / 16;
 
-    List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures = new ArrayList<>(snapshots.size());
-    Executor executor = BlockChanger.EXECUTOR;
+    final List<CompletableFuture<Map.Entry<Chunk, ChunkSectionSnapshot>>> futures = new ArrayList<>(snapshots.size());
+    final Executor executor = BlockChanger.EXECUTOR;
 
-    for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshots.entrySet()) {
-      Chunk originalChunk = entry.getKey();
-      ChunkSectionSnapshot snapshot = entry.getValue();
+    for (final Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshots.entrySet()) {
+      final Chunk originalChunk = entry.getKey();
+      final ChunkSectionSnapshot snapshot = entry.getValue();
 
-      int newX = originalChunk.getX() + chunkOffsetX;
-      int newZ = originalChunk.getZ() + chunkOffsetZ;
-      ChunkPosition newPos = new ChunkPosition(newX, newZ);
+      final int newX = originalChunk.getX() + chunkOffsetX;
+      final int newZ = originalChunk.getZ() + chunkOffsetZ;
+      final ChunkPosition newPos = new ChunkPosition(newX, newZ);
 
-      CompletableFuture<Chunk> chunkFuture = Optional.ofNullable(preloadedChunks.get(newPos))
+      final CompletableFuture<Chunk> chunkFuture = Optional.ofNullable(preloadedChunks.get(newPos))
         .map(CompletableFuture::completedFuture)
         .orElseGet(() -> originalChunk.getWorld().getChunkAtAsync(newX, newZ));
 

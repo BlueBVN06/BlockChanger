@@ -10,18 +10,18 @@ import java.util.Iterator;
 import java.util.Set;
 
 public class LightingService {
-  public static void updateLighting(Set<Chunk> chunks, boolean refresh) {
+  public static void updateLighting(final Set<Chunk> chunks, final boolean refresh) {
     if (chunks == null || chunks.isEmpty()) {
       return;
     }
 
-    Iterator<Chunk> iterator = chunks.iterator();
-    Chunk firstChunk = iterator.next();
-    ServerLevel world = ((org.bukkit.craftbukkit.CraftWorld) firstChunk.getWorld()).getHandle();
+    final Iterator<Chunk> iterator = chunks.iterator();
+    final Chunk firstChunk = iterator.next();
+    final ServerLevel world = ((org.bukkit.craftbukkit.CraftWorld) firstChunk.getWorld()).getHandle();
 
-    Collection<ChunkPos> chunkPositions = new ArrayList<>(chunks.size());
+    final Collection<ChunkPos> chunkPositions = new ArrayList<>(chunks.size());
 
-    for (Chunk chunk : chunks) {
+    for (final Chunk chunk : chunks) {
       chunkPositions.add(new ChunkPos(chunk.getX(), chunk.getZ()));
       if (refresh) {
         chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());

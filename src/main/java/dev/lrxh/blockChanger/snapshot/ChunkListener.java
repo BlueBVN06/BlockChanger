@@ -18,7 +18,7 @@ public class ChunkListener implements Listener {
 
   @EventHandler(priority = EventPriority.MONITOR)
   public void onChunkLoad(ChunkLoadEvent event) {
-    QueuedChunkSnapshot queuedChunkSnapshot = SnapshotService.getSnapshot(
+    final QueuedChunkSnapshot queuedChunkSnapshot = SnapshotService.getSnapshot(
       new ChunkPos(event.getChunk().getX(), event.getChunk().getZ()));
 
     if (queuedChunkSnapshot == null)

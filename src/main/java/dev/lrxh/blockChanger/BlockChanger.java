@@ -45,16 +45,16 @@ public class BlockChanger {
   private static final int[][] SHIFT_CACHE = new int[16][];
   private static final long[][] MASK_CACHE = new long[16][];
 
-  public static void initialize(JavaPlugin plugin) {
+  public static void initialize(final JavaPlugin plugin) {
     plugin.getServer().getPluginManager().registerEvents(new ChunkListener(plugin), plugin);
 
     for (int bits = 1; bits <= 16; ++bits) {
-      int vp = 64 / bits;
-      int[] shifts = new int[vp];
-      long[] masks = new long[vp];
-      long mask = (1L << bits) - 1L;
+      final int vp = 64 / bits;
+      final int[] shifts = new int[vp];
+      final long[] masks = new long[vp];
+      final long mask = (1L << bits) - 1L;
       for (int p = 0; p < vp; ++p) {
-        int s = p * bits;
+        final int s = p * bits;
         shifts[p] = s;
         masks[p] = mask << s;
       }
@@ -63,16 +63,16 @@ public class BlockChanger {
     }
   }
 
-  public static ChunkSectionSnapshot createChunkBlockSnapshot(Chunk chunk) {
-    CraftChunk craftChunk = (CraftChunk) chunk;
-    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
-    ChunkPos position = chunkAccess.getPos();
+  public static ChunkSectionSnapshot createChunkBlockSnapshot(final Chunk chunk) {
+    final CraftChunk craftChunk = (CraftChunk) chunk;
+    final ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
+    final ChunkPos position = chunkAccess.getPos();
 
-    LevelChunkSection[] sections = chunkAccess.getSections();
-    LevelChunkSection[] copiedSections = new LevelChunkSection[sections.length];
+    final LevelChunkSection[] sections = chunkAccess.getSections();
+    final LevelChunkSection[] copiedSections = new LevelChunkSection[sections.length];
 
     for (int i = 0; i < sections.length; i++) {
-      LevelChunkSection section = sections[i];
+      final LevelChunkSection section = sections[i];
       copiedSections[i] = (section != null) ? section.copy() : null;
     }
 
@@ -80,28 +80,28 @@ public class BlockChanger {
   }
 
 
-  public static CompletableFuture<Void> restoreChunkBlockSnapshotAsync(Chunk chunk, ChunkSectionSnapshot snapshot,
-                                                                       boolean clearEntities) {
+  public static CompletableFuture<Void> restoreChunkBlockSnapshotAsync(final Chunk chunk, final ChunkSectionSnapshot snapshot,
+                                                                       final boolean clearEntities) {
     return CompletableFuture.runAsync(() -> restoreChunkBlockSnapshot(chunk, snapshot, clearEntities), EXECUTOR);
   }
 
-  public static void restoreChunkBlockSnapshot(Chunk chunk, ChunkSectionSnapshot snapshot, boolean clearEntities) {
-    CraftChunk craftChunk = (CraftChunk) chunk;
-    ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
-    ServerLevel level = craftChunk.getCraftWorld().getHandle();
+  public static void restoreChunkBlockSnapshot(final Chunk chunk, final ChunkSectionSnapshot snapshot, final boolean clearEntities) {
+    final CraftChunk craftChunk = (CraftChunk) chunk;
+    final ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
+    final ServerLevel level = craftChunk.getCraftWorld().getHandle();
 
     if (clearEntities) {
       chunkAccess.blockEntities.clear();
 
-      int chunkX = chunk.getX();
-      int chunkZ = chunk.getZ();
+      final int chunkX = chunk.getX();
+      final int chunkZ = chunk.getZ();
 
-      for (Entity entity : craftChunk.getCraftWorld().getHandle().moonrise$getEntityLookup().getAll()) {
+      for (final Entity entity : craftChunk.getCraftWorld().getHandle().moonrise$getEntityLookup().getAll()) {
         if (entity instanceof Player)
           continue;
 
-        int entityChunkX = (int) Math.floor(entity.getX()) >> 4;
-        int entityChunkZ = (int) Math.floor(entity.getZ()) >> 4;
+        final int entityChunkX = (int) Math.floor(entity.getX()) >> 4;
+        final int entityChunkZ = (int) Math.floor(entity.getZ()) >> 4;
 
         if (entityChunkX == chunkX && entityChunkZ == chunkZ) {
           entity.remove(Entity.RemovalReason.DISCARDED);
@@ -109,12 +109,12 @@ public class BlockChanger {
       }
     }
 
-    LevelChunkSection[] newSections = snapshot.sections();
+    final LevelChunkSection[] newSections = snapshot.sections();
     setSections(chunkAccess, newSections, level, true);
   }
 
-  private static void setSections(ChunkAccess chunkAccess, LevelChunkSection[] newSections, ServerLevel level, boolean copy) {
-    LevelChunkSection[] currentSections = chunkAccess.getSections();
+  private static void setSections(final ChunkAccess chunkAccess, final LevelChunkSection[] newSections, final ServerLevel level, final boolean copy) {
+    final LevelChunkSection[] currentSections = chunkAccess.getSections();
 
     if (currentSections.length != newSections.length) {
       throw new IllegalArgumentException("Section count mismatch: expected "
@@ -139,18 +139,18 @@ public class BlockChanger {
     });
   }
 
-  public static LevelChunkSection createEmptySection(Level level) {
-    PalettedContainer<BlockState> states = new PalettedContainer<>(
+  public static LevelChunkSection createEmptySection(final Level level) {
+    final PalettedContainer<BlockState> states = new PalettedContainer<>(
       Block.BLOCK_STATE_REGISTRY,
       Blocks.AIR.defaultBlockState(),
       PalettedContainer.Strategy.SECTION_STATES,
       null
     );
 
-    Registry<Biome> biomeRegistry = level.registryAccess().lookupOrThrow(Registries.BIOME);
-    Holder<Biome> defaultBiome = biomeRegistry.getOrThrow(Biomes.PLAINS);
+    final Registry<Biome> biomeRegistry = level.registryAccess().lookupOrThrow(Registries.BIOME);
+    final Holder<Biome> defaultBiome = biomeRegistry.getOrThrow(Biomes.PLAINS);
 
-    PalettedContainer<Holder<Biome>> biomes = new PalettedContainer<>(
+    final PalettedContainer<Holder<Biome>> biomes = new PalettedContainer<>(
       biomeRegistry.asHolderIdMap(),
       defaultBiome,
       PalettedContainer.Strategy.SECTION_BIOMES,
@@ -160,7 +160,7 @@ public class BlockChanger {
     return new LevelChunkSection(states, biomes);
   }
 
-  private static void setAll(LevelChunkSection section, int[] indices, BlockState[] states) {
+  private static void setAll(final LevelChunkSection section, final int[] indices, final BlockState[] states) {
     final int n = states.length;
     if (n == 0) return;
 
@@ -185,7 +185,7 @@ public class BlockChanger {
     final ConcurrentHashMap<BlockState, Integer> paletteCache = new ConcurrentHashMap<>();
     IntStream.range(0, n).parallel().forEach(i -> {
       final BlockState state = states[i];
-      int pid = paletteCache.computeIfAbsent(state, palette::idFor);
+      final int pid = paletteCache.computeIfAbsent(state, palette::idFor);
       paletteIds[i] = pid;
     });
 
@@ -194,7 +194,7 @@ public class BlockChanger {
     final long[][] valuesPerThread = new long[numThreads][rawLen];
 
     IntStream.range(0, n).parallel().forEach(i -> {
-      int threadId = (int) (Thread.currentThread().threadId() % numThreads);
+      final int threadId = (int) (Thread.currentThread().threadId() % numThreads);
       final int idx = indices[i];
       final int pid = paletteIds[i] & (int) bitMask;
       final int cell = idx / valuesPerLong;
@@ -217,7 +217,7 @@ public class BlockChanger {
     section.recalcBlockCounts();
   }
 
-  public static CompletableFuture<Void> setBlocks(Map<Location, BlockData> blocks, boolean updateLighting) {
+  public static CompletableFuture<Void> setBlocks(final Map<Location, BlockData> blocks, final boolean updateLighting) {
     if (blocks == null || blocks.isEmpty()) {
       return CompletableFuture.completedFuture(null);
     }
@@ -230,7 +230,7 @@ public class BlockChanger {
       final Long2ObjectOpenHashMap<List<Map.Entry<Location, BlockData>>> chunkMap =
         new Long2ObjectOpenHashMap<>(estimatedChunks);
 
-      for (Map.Entry<Location, BlockData> e : blocks.entrySet()) {
+      for (final Map.Entry<Location, BlockData> e : blocks.entrySet()) {
         final Location loc = e.getKey();
         final long chunkKey = (((long) (loc.getBlockX() >> 4)) << 32) | ((loc.getBlockZ() >> 4) & 0xFFFFFFFFL);
         chunkMap.computeIfAbsent(chunkKey, k -> new ArrayList<>(4)).add(e);
@@ -239,13 +239,13 @@ public class BlockChanger {
       final IdentityHashMap<BlockData, net.minecraft.world.level.block.state.BlockState> stateCache =
         new IdentityHashMap<>(blocks.size() >>> 2);
 
-      List<CompletableFuture<Chunk>> chunkFutures = new ArrayList<>(chunkMap.size());
+      final List<CompletableFuture<Chunk>> chunkFutures = new ArrayList<>(chunkMap.size());
 
-      for (Long2ObjectMap.Entry<List<Map.Entry<Location, BlockData>>> entry : chunkMap.long2ObjectEntrySet()) {
+      for (final Long2ObjectMap.Entry<List<Map.Entry<Location, BlockData>>> entry : chunkMap.long2ObjectEntrySet()) {
         final long chunkKey = entry.getLongKey();
         final List<Map.Entry<Location, BlockData>> chunkBlocks = entry.getValue();
 
-        CompletableFuture<Chunk> task = CompletableFuture.supplyAsync(() -> {
+        final CompletableFuture<Chunk> task = CompletableFuture.supplyAsync(() -> {
           final int chunkX = (int) (chunkKey >> 32);
           final int chunkZ = (int) chunkKey;
           final Chunk bukkitChunk = firstLoc.getWorld().getChunkAt(chunkX, chunkZ);
@@ -254,8 +254,8 @@ public class BlockChanger {
           final int sectionCount = sections.length;
 
           final int[] sectionSizes = new int[sectionCount];
-          for (Map.Entry<Location, BlockData> blockEntry : chunkBlocks) {
-            int by = blockEntry.getKey().getBlockY();
+          for (final Map.Entry<Location, BlockData> blockEntry : chunkBlocks) {
+            final int by = blockEntry.getKey().getBlockY();
             sectionSizes[level.getSectionIndex(by)]++;
           }
 
@@ -269,7 +269,7 @@ public class BlockChanger {
             }
           }
 
-          for (Map.Entry<Location, BlockData> blockEntry : chunkBlocks) {
+          for (final Map.Entry<Location, BlockData> blockEntry : chunkBlocks) {
             final Location loc = blockEntry.getKey();
             final BlockData bd = blockEntry.getValue();
             final net.minecraft.world.level.block.state.BlockState state =
@@ -286,7 +286,7 @@ public class BlockChanger {
               sections[sectionIndex] = section;
             }
 
-            int idx = sectionSizes[sectionIndex];
+            final int idx = sectionSizes[sectionIndex];
             sectionIndices[sectionIndex][idx] = ((by & 15) << 8) | ((bz & 15) << 4) | (bx & 15);
             sectionStates[sectionIndex][idx] = state;
             sectionSizes[sectionIndex]++;
@@ -304,15 +304,15 @@ public class BlockChanger {
         chunkFutures.add(task);
       }
 
-      List<Chunk> changedChunks = new ArrayList<>(chunkFutures.size());
-      for (CompletableFuture<Chunk> future : chunkFutures) {
+      final List<Chunk> changedChunks = new ArrayList<>(chunkFutures.size());
+      for (final CompletableFuture<Chunk> future : chunkFutures) {
         changedChunks.add(future.join());
       }
 
       if (updateLighting && !changedChunks.isEmpty()) {
         LightingService.updateLighting(new HashSet<>(changedChunks), true);
       } else {
-        for (Chunk c : changedChunks) {
+        for (final Chunk c : changedChunks) {
           c.getWorld().refreshChunk(c.getX(), c.getZ());
         }
       }
@@ -320,16 +320,16 @@ public class BlockChanger {
   }
 
 
-  public static CompletableFuture<Void> updateLighting(Set<Chunk> chunks) {
+  public static CompletableFuture<Void> updateLighting(final Set<Chunk> chunks) {
     return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true), EXECUTOR);
   }
 
-  public static CompletableFuture<Void> restoreCuboidSnapshotAsync(CuboidSnapshot snapshot, boolean clearEntities) {
+  public static CompletableFuture<Void> restoreCuboidSnapshotAsync(final CuboidSnapshot snapshot, final boolean clearEntities) {
     return CompletableFuture.runAsync(() -> restoreCuboidSnapshot(snapshot, clearEntities), EXECUTOR);
   }
 
-  public static void restoreCuboidSnapshot(CuboidSnapshot snapshot, boolean clearEntities) {
-    for (Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
+  public static void restoreCuboidSnapshot(final CuboidSnapshot snapshot, final boolean clearEntities) {
+    for (final Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
       restoreChunkBlockSnapshot(entry.getKey(), entry.getValue(), clearEntities);
     }
 
