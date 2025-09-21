@@ -204,7 +204,10 @@ public class BlockChanger {
       null
     );
 
-    return new LevelChunkSection(states, biomes);
+    LevelChunkSection section = new LevelChunkSection(states, biomes);
+    section.recalcBlockCounts();
+
+    return section;
   }
 
   /**
@@ -215,7 +218,7 @@ public class BlockChanger {
    * per-thread masks/values and combining them in a final pass to avoid contention.
    *
    * @param section    target section to modify
-   * @param indices    indices inside the section (0..4095) where values should be written
+   * @param indices    indices inside the section (0..4096) where values should be written
    * @param paletteIds palette ids corresponding to each index
    */
   private static void writePaletteIds(LevelChunkSection section, int[] indices, int[] paletteIds) {
