@@ -35,7 +35,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
@@ -79,13 +78,14 @@ public class BlockChanger {
     final CraftChunk craftChunk = (CraftChunk) chunk;
     final ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
     final ChunkPos position = chunkAccess.getPos();
+    final Level level = craftChunk.getCraftWorld().getHandle();
 
     final LevelChunkSection[] sections = chunkAccess.getSections();
     final LevelChunkSection[] copiedSections = new LevelChunkSection[sections.length];
 
     for (int i = 0; i < sections.length; i++) {
       final LevelChunkSection section = sections[i];
-      copiedSections[i] = (section != null) ? section.copy() : null;
+      copiedSections[i] = (section != null) ? section.copy() : createEmptySection(level);
     }
 
     return new ChunkSectionSnapshot(copiedSections, position);
@@ -97,8 +97,8 @@ public class BlockChanger {
    * This will restore the chunk back to its state when it was copied If {@code clearEntities} is true,
    * non-player entities in the chunk will be removed and existing block-entity data cleared.
    *
-   * @param chunk the Bukkit chunk to restore
-   * @param snapshot snapshot to restore from
+   * @param chunk         the Bukkit chunk to restore
+   * @param snapshot      snapshot to restore from
    * @param clearEntities true to clear non-player entities and block entities
    * @return a CompletableFuture that completes when the restore task finishes
    */
@@ -112,8 +112,8 @@ public class BlockChanger {
    * Internal restore implementation. This is the synchronous work that performs the actual
    * section replacement and optional entity clearing. Intended to be called on a worker thread.
    *
-   * @param chunk the Bukkit chunk to restore
-   * @param snapshot snapshot to restore from
+   * @param chunk         the Bukkit chunk to restore
+   * @param snapshot      snapshot to restore from
    * @param clearEntities whether to clear entities and block entities in the chunk
    */
   private static void restoreChunkBlockSnapshotInternal(final Chunk chunk, final ChunkSectionSnapshot snapshot, final boolean clearEntities) {
@@ -153,8 +153,8 @@ public class BlockChanger {
    *
    * @param chunkAccess the chunk to modify
    * @param newSections the sections to apply
-   * @param level server level used to create empty sections when needed
-   * @param copy if true, copy the provided new sections before applying them
+   * @param level       server level used to create empty sections when needed
+   * @param copy        if true, copy the provided new sections before applying them
    * @throws IllegalArgumentException if the provided sections array length differs from the current
    */
   private static void setSections(final ChunkAccess chunkAccess, final LevelChunkSection[] newSections, final ServerLevel level, final boolean copy) {
@@ -169,13 +169,9 @@ public class BlockChanger {
       LevelChunkSection section = currentSections[i];
       LevelChunkSection newSection = newSections[i];
 
-      if (section == null) {
-        section = createEmptySection(level);
-      }
+      if (section == null) section = createEmptySection(level);
 
-      if (newSection == null) {
-        newSection = createEmptySection(level);
-      }
+      if (newSection == null) newSection = createEmptySection(level);
 
       if (section.hasOnlyAir() && newSection.hasOnlyAir()) return;
 
@@ -219,8 +215,8 @@ public class BlockChanger {
    * using cached shift/mask tables. It performs a parallel write by collecting
    * per-thread masks/values and combining them in a final pass to avoid contention.
    *
-   * @param section target section to modify
-   * @param indices indices inside the section (0..4095) where values should be written
+   * @param section    target section to modify
+   * @param indices    indices inside the section (0..4095) where values should be written
    * @param paletteIds palette ids corresponding to each index
    */
   private static void writePaletteIds(LevelChunkSection section, int[] indices, int[] paletteIds) {
@@ -262,7 +258,6 @@ public class BlockChanger {
     section.recalcBlockCounts();
   }
 
-
   /**
    * Set positions inside a section to the given block states.
    * <p>
@@ -271,7 +266,7 @@ public class BlockChanger {
    *
    * @param section section to modify
    * @param indices indices inside the section (0..4095)
-   * @param states block states to write at the corresponding indices
+   * @param states  block states to write at the corresponding indices
    */
   private static void setAll(LevelChunkSection section, int[] indices, BlockState[] states) {
     final int n = states.length;
@@ -305,7 +300,7 @@ public class BlockChanger {
    * Changes are grouped per chunk, converted to native Minecraft {@link BlockState} and
    * written directly into chunk sections. Lighting is optionally updated after the changes.
    *
-   * @param blocks map of locations to block data to apply
+   * @param blocks         map of locations to block data to apply
    * @param updateLighting if true, run lighting updates for all affected chunks
    * @return a CompletableFuture that completes once the work and optional lighting updates begin
    */
@@ -385,9 +380,8 @@ public class BlockChanger {
           }
 
           for (int s = 0; s < sectionCount; s++) {
-            if (sectionIndices[s] != null) {
-              setAll(sections[s], sectionIndices[s], sectionStates[s]);
-            }
+            if (sectionIndices[s] == null) continue;
+            setAll(sections[s], sectionIndices[s], sectionStates[s]);
           }
 
           return bukkitChunk;
@@ -411,7 +405,6 @@ public class BlockChanger {
     }, EXECUTOR);
   }
 
-
   /**
    * Request a lighting update for a set of chunks asynchronously.
    *
@@ -428,7 +421,7 @@ public class BlockChanger {
    * This schedules the restore on the shared executor and will also trigger lighting updates
    * for all affected chunks after restoring.
    *
-   * @param snapshot cuboid snapshot containing multiple chunk snapshots
+   * @param snapshot      cuboid snapshot containing multiple chunk snapshots
    * @param clearEntities whether to clear non-player entities when restoring
    * @return a CompletableFuture that completes when the restore begins
    */
@@ -441,7 +434,7 @@ public class BlockChanger {
    * <p>
    * Each chunk snapshot will be restored and then lighting will be updated for all affected chunks.
    *
-   * @param snapshot snapshot to restore
+   * @param snapshot      snapshot to restore
    * @param clearEntities whether to clear non-player entities during restore
    */
   public static void restoreCuboidSnapshot(final CuboidSnapshot snapshot, final boolean clearEntities) {
