@@ -243,33 +243,25 @@ public class BlockChanger {
     final long bitMask = (1L << bits) - 1L;
     final int rawLen = raw.length;
 
-    final int numThreads = Runtime.getRuntime().availableProcessors();
-    final long[][] masksPerThread = new long[numThreads][rawLen];
-    final long[][] valuesPerThread = new long[numThreads][rawLen];
+    final long[] batchMasks = new long[rawLen];
+    final long[] batchValues = new long[rawLen];
 
-    IntStream.range(0, n).parallel().forEach(i -> {
-      final int threadId = (int) (Thread.currentThread().threadId() % numThreads);
+    for (int i = 0; i < n; i++) {
       final int idx = indices[i];
       final int pid = paletteIds[i] & (int) bitMask;
       final int cell = idx / valuesPerLong;
       final int pos = idx % valuesPerLong;
-      masksPerThread[threadId][cell] |= masks[pos];
-      valuesPerThread[threadId][cell] |= ((long) pid) << shifts[pos];
-    });
-
-    final long[] batchMasks = new long[rawLen];
-    final long[] batchValues = new long[rawLen];
-    for (int j = 0; j < rawLen; j++) {
-      for (int t = 0; t < numThreads; t++) {
-        batchMasks[j] |= masksPerThread[t][j];
-        batchValues[j] |= valuesPerThread[t][j];
-      }
+      batchMasks[cell] |= masks[pos];
+      batchValues[cell] |= ((long) pid) << shifts[pos];
     }
 
-    IntStream.range(0, rawLen).parallel().forEach(j -> raw[j] = (raw[j] & ~batchMasks[j]) | batchValues[j]);
+    for (int j = 0; j < rawLen; j++) {
+      raw[j] = (raw[j] & ~batchMasks[j]) | batchValues[j];
+    }
 
     section.recalcBlockCounts();
   }
+
 
   /**
    * Set positions inside a section to the given block states.
@@ -285,17 +277,23 @@ public class BlockChanger {
     final int n = states.length;
     if (n == 0) return;
 
-
     final PalettedContainer<BlockState> container = section.states;
     final PalettedContainer.Data<BlockState> data = container.data;
     final Palette<BlockState> palette = data.palette();
 
     final int[] paletteIds = new int[n];
-    final ConcurrentHashMap<BlockState, Integer> paletteCache = new ConcurrentHashMap<>();
-    IntStream.range(0, n).parallel().forEach(i -> {
-      final BlockState state = states[i];
-      paletteIds[i] = paletteCache.computeIfAbsent(state, palette::idFor);
-    });
+    final HashMap<BlockState, Integer> paletteCache = new HashMap<>(Math.min(n, 16));
+    synchronized (palette) {
+      for (int i = 0; i < n; i++) {
+        final BlockState state = states[i];
+        Integer id = paletteCache.get(state);
+        if (id == null) {
+          id = palette.idFor(state);
+          paletteCache.put(state, id);
+        }
+        paletteIds[i] = id;
+      }
+    }
 
     writePaletteIds(section, indices, paletteIds);
   }
