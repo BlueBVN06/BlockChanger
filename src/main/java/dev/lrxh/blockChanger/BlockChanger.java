@@ -45,6 +45,12 @@ public class BlockChanger {
 
   private static final int[][] SHIFT_CACHE = new int[16][];
   private static final long[][] MASK_CACHE = new long[16][];
+  private static final PalettedContainer<BlockState> states = new PalettedContainer<>(
+    Block.BLOCK_STATE_REGISTRY,
+    Blocks.AIR.defaultBlockState(),
+    PalettedContainer.Strategy.SECTION_STATES,
+    null
+  );
 
   public static void initialize(final JavaPlugin plugin) {
     plugin.getServer().getPluginManager().registerEvents(new ChunkListener(plugin), plugin);
@@ -188,13 +194,6 @@ public class BlockChanger {
    * @return a new empty {@link LevelChunkSection}
    */
   private static LevelChunkSection createEmptySection(final Level level) {
-    final PalettedContainer<BlockState> states = new PalettedContainer<>(
-      Block.BLOCK_STATE_REGISTRY,
-      Blocks.AIR.defaultBlockState(),
-      PalettedContainer.Strategy.SECTION_STATES,
-      null
-    );
-
     final Registry<Biome> biomeRegistry = level.registryAccess().lookupOrThrow(Registries.BIOME);
     final Holder<Biome> defaultBiome = biomeRegistry.getOrThrow(Biomes.PLAINS);
 
