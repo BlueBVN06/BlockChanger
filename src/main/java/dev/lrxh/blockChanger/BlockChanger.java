@@ -25,6 +25,7 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.Palette;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import org.apache.logging.log4j.util.InternalApi;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.block.data.BlockData;
@@ -42,6 +43,7 @@ import java.util.stream.IntStream;
 @SuppressWarnings("unused")
 public class BlockChanger {
   public static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+
   private static final int[][] SHIFT_CACHE = new int[16][];
   private static final long[][] MASK_CACHE = new long[16][];
 
@@ -63,6 +65,16 @@ public class BlockChanger {
     }
   }
 
+  /**
+   * Create a snapshot of the block data for a whole chunk.
+   * <p>
+   * This copies each LevelChunkSection so the returned snapshot is safe to store
+   * and later restore without being affected by further chunk changes.
+   *
+   * @param chunk the Bukkit chunk to snapshot
+   * @return a {@link ChunkSectionSnapshot} containing copied sections and the chunk position
+   */
+  @InternalApi
   public static ChunkSectionSnapshot createChunkBlockSnapshot(final Chunk chunk) {
     final CraftChunk craftChunk = (CraftChunk) chunk;
     final ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
@@ -79,13 +91,32 @@ public class BlockChanger {
     return new ChunkSectionSnapshot(copiedSections, position);
   }
 
-
-  public static CompletableFuture<Void> restoreChunkBlockSnapshotAsync(final Chunk chunk, final ChunkSectionSnapshot snapshot,
-                                                                       final boolean clearEntities) {
-    return CompletableFuture.runAsync(() -> restoreChunkBlockSnapshot(chunk, snapshot, clearEntities), EXECUTOR);
+  /**
+   * Asynchronously restore a chunk from a snapshot.
+   * <p>
+   * This will restore the chunk back to its state when it was copied If {@code clearEntities} is true,
+   * non-player entities in the chunk will be removed and existing block-entity data cleared.
+   *
+   * @param chunk the Bukkit chunk to restore
+   * @param snapshot snapshot to restore from
+   * @param clearEntities true to clear non-player entities and block entities
+   * @return a CompletableFuture that completes when the restore task finishes
+   */
+  @InternalApi
+  public static CompletableFuture<Void> restoreChunkBlockSnapshot(final Chunk chunk, final ChunkSectionSnapshot snapshot,
+                                                                  final boolean clearEntities) {
+    return CompletableFuture.runAsync(() -> restoreChunkBlockSnapshotInternal(chunk, snapshot, clearEntities), EXECUTOR);
   }
 
-  public static void restoreChunkBlockSnapshot(final Chunk chunk, final ChunkSectionSnapshot snapshot, final boolean clearEntities) {
+  /**
+   * Internal restore implementation. This is the synchronous work that performs the actual
+   * section replacement and optional entity clearing. Intended to be called on a worker thread.
+   *
+   * @param chunk the Bukkit chunk to restore
+   * @param snapshot snapshot to restore from
+   * @param clearEntities whether to clear entities and block entities in the chunk
+   */
+  private static void restoreChunkBlockSnapshotInternal(final Chunk chunk, final ChunkSectionSnapshot snapshot, final boolean clearEntities) {
     final CraftChunk craftChunk = (CraftChunk) chunk;
     final ChunkAccess chunkAccess = craftChunk.getHandle(ChunkStatus.FULL);
     final ServerLevel level = craftChunk.getCraftWorld().getHandle();
@@ -113,6 +144,19 @@ public class BlockChanger {
     setSections(chunkAccess, newSections, level, true);
   }
 
+  /**
+   * Replace the sections in a {@link ChunkAccess} with the provided sections.
+   * <p>
+   * Any null sections are replaced with empty sections. If both current and new sections
+   * are air-only, they are left untouched. This method validates section count and
+   * performs the replacement in parallel for speed.
+   *
+   * @param chunkAccess the chunk to modify
+   * @param newSections the sections to apply
+   * @param level server level used to create empty sections when needed
+   * @param copy if true, copy the provided new sections before applying them
+   * @throws IllegalArgumentException if the provided sections array length differs from the current
+   */
   private static void setSections(final ChunkAccess chunkAccess, final LevelChunkSection[] newSections, final ServerLevel level, final boolean copy) {
     final LevelChunkSection[] currentSections = chunkAccess.getSections();
 
@@ -139,7 +183,15 @@ public class BlockChanger {
     });
   }
 
-  public static LevelChunkSection createEmptySection(final Level level) {
+  /**
+   * Create an empty chunk section with default air blocks and default biome.
+   * <p>
+   * This helper builds the state and biome paletted containers used by LevelChunkSection.
+   *
+   * @param level level used to obtain biome registry and default holder
+   * @return a new empty {@link LevelChunkSection}
+   */
+  private static LevelChunkSection createEmptySection(final Level level) {
     final PalettedContainer<BlockState> states = new PalettedContainer<>(
       Block.BLOCK_STATE_REGISTRY,
       Blocks.AIR.defaultBlockState(),
@@ -160,13 +212,23 @@ public class BlockChanger {
     return new LevelChunkSection(states, biomes);
   }
 
-  private static void setAll(final LevelChunkSection section, final int[] indices, final BlockState[] states) {
-    final int n = states.length;
+  /**
+   * Low level writer that writes palette ids into a section's raw BitStorage.
+   * <p>
+   * This method packs the provided {@code paletteIds} into the section's BitStorage
+   * using cached shift/mask tables. It performs a parallel write by collecting
+   * per-thread masks/values and combining them in a final pass to avoid contention.
+   *
+   * @param section target section to modify
+   * @param indices indices inside the section (0..4095) where values should be written
+   * @param paletteIds palette ids corresponding to each index
+   */
+  private static void writePaletteIds(LevelChunkSection section, int[] indices, int[] paletteIds) {
+    final int n = paletteIds.length;
     if (n == 0) return;
 
     final PalettedContainer<BlockState> container = section.states;
     final PalettedContainer.Data<BlockState> data = container.data;
-    final Palette<BlockState> palette = data.palette();
     final BitStorage storage = data.storage();
     final int bits = storage.getBits();
     if (bits == 0) {
@@ -180,14 +242,6 @@ public class BlockChanger {
     final long[] raw = storage.getRaw();
     final long bitMask = (1L << bits) - 1L;
     final int rawLen = raw.length;
-
-    final int[] paletteIds = new int[n];
-    final ConcurrentHashMap<BlockState, Integer> paletteCache = new ConcurrentHashMap<>();
-    IntStream.range(0, n).parallel().forEach(i -> {
-      final BlockState state = states[i];
-      final int pid = paletteCache.computeIfAbsent(state, palette::idFor);
-      paletteIds[i] = pid;
-    });
 
     final int numThreads = Runtime.getRuntime().availableProcessors();
     final long[][] masksPerThread = new long[numThreads][rawLen];
@@ -217,6 +271,46 @@ public class BlockChanger {
     section.recalcBlockCounts();
   }
 
+  /**
+   * Set positions inside a section to the given block states.
+   * <p>
+   * This method resolves palette ids for each state in parallel and then calls
+   * {@link #writePaletteIds} to update the packed storage.
+   *
+   * @param section section to modify
+   * @param indices indices inside the section (0..4095)
+   * @param states block states to write at the corresponding indices
+   */
+  private static void setAll(LevelChunkSection section, int[] indices, BlockState[] states) {
+    final int n = states.length;
+    if (n == 0) return;
+
+
+    final PalettedContainer<BlockState> container = section.states;
+    final PalettedContainer.Data<BlockState> data = container.data;
+    final Palette<BlockState> palette = data.palette();
+
+    final int[] paletteIds = new int[n];
+    final ConcurrentHashMap<BlockState, Integer> paletteCache = new ConcurrentHashMap<>();
+    IntStream.range(0, n).parallel().forEach(i -> {
+      final BlockState state = states[i];
+      paletteIds[i] = paletteCache.computeIfAbsent(state, palette::idFor);
+    });
+
+    writePaletteIds(section, indices, paletteIds);
+  }
+
+  /**
+   * Asynchronously set a collection of block changes.
+   * <p>
+   * The map keys are {@link Location} objects and values are {@link BlockData}.
+   * Changes are grouped per chunk, converted to native Minecraft {@link BlockState} and
+   * written directly into chunk sections. Lighting is optionally updated after the changes.
+   *
+   * @param blocks map of locations to block data to apply
+   * @param updateLighting if true, run lighting updates for all affected chunks
+   * @return a CompletableFuture that completes once the work and optional lighting updates begin
+   */
   public static CompletableFuture<Void> setBlocks(final Map<Location, BlockData> blocks, final boolean updateLighting) {
     if (blocks == null || blocks.isEmpty()) {
       return CompletableFuture.completedFuture(null);
@@ -320,14 +414,38 @@ public class BlockChanger {
   }
 
 
+  /**
+   * Request a lighting update for a set of chunks asynchronously.
+   *
+   * @param chunks set of chunks that need lighting recalculation
+   * @return a CompletableFuture that completes once the lighting task is scheduled
+   */
   public static CompletableFuture<Void> updateLighting(final Set<Chunk> chunks) {
     return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true), EXECUTOR);
   }
 
+  /**
+   * Asynchronously restore a saved cuboid snapshot.
+   * <p>
+   * This schedules the restore on the shared executor and will also trigger lighting updates
+   * for all affected chunks after restoring.
+   *
+   * @param snapshot cuboid snapshot containing multiple chunk snapshots
+   * @param clearEntities whether to clear non-player entities when restoring
+   * @return a CompletableFuture that completes when the restore begins
+   */
   public static CompletableFuture<Void> restoreCuboidSnapshotAsync(final CuboidSnapshot snapshot, final boolean clearEntities) {
     return CompletableFuture.runAsync(() -> restoreCuboidSnapshot(snapshot, clearEntities), EXECUTOR);
   }
 
+  /**
+   * Restore all chunk snapshots contained in a {@link CuboidSnapshot} synchronously.
+   * <p>
+   * Each chunk snapshot will be restored and then lighting will be updated for all affected chunks.
+   *
+   * @param snapshot snapshot to restore
+   * @param clearEntities whether to clear non-player entities during restore
+   */
   public static void restoreCuboidSnapshot(final CuboidSnapshot snapshot, final boolean clearEntities) {
     for (final Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
       restoreChunkBlockSnapshot(entry.getKey(), entry.getValue(), clearEntities);

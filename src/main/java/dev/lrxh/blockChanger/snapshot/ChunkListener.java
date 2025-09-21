@@ -25,6 +25,6 @@ public class ChunkListener implements Listener {
       return;
     if (event.getChunk().getWorld().getName() != queuedChunkSnapshot.worldName())
       return;
-    Bukkit.getScheduler().runTask(plugin, () -> BlockChanger.restoreChunkBlockSnapshotAsync(event.getChunk(), queuedChunkSnapshot.snapshot(), true));
+    Bukkit.getScheduler().runTask(plugin, () -> BlockChanger.restoreChunkBlockSnapshot(event.getChunk(), queuedChunkSnapshot.snapshot(), true));
   }
 }
