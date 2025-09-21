@@ -34,10 +34,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
+@SuppressWarnings("unused")
 public class BlockChanger {
   public static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
   private static final int[][] SHIFT_CACHE = new int[16][];
@@ -177,50 +179,40 @@ public class BlockChanger {
     final long[] masks = MASK_CACHE[bits - 1];
     final long[] raw = storage.getRaw();
     final long bitMask = (1L << bits) - 1L;
+    final int rawLen = raw.length;
 
-    final IdentityHashMap<BlockState, Integer> paletteCache = new IdentityHashMap<>(Math.max(16, n >>> 1));
     final int[] paletteIds = new int[n];
-    BlockState lastState = null;
-    int lastId = -1;
-
-    for (int i = 0; i < n; i++) {
+    final ConcurrentHashMap<BlockState, Integer> paletteCache = new ConcurrentHashMap<>();
+    IntStream.range(0, n).parallel().forEach(i -> {
       final BlockState state = states[i];
-      if (state == lastState) {
-        paletteIds[i] = lastId;
-      } else {
-        Integer pid = paletteCache.get(state);
-        if (pid == null) {
-          pid = palette.idFor(state);
-          paletteCache.put(state, pid);
-        }
-        paletteIds[i] = pid;
-        lastState = state;
-        lastId = pid;
-      }
-    }
+      int pid = paletteCache.computeIfAbsent(state, palette::idFor);
+      paletteIds[i] = pid;
+    });
 
-    final long[] batchMasks = new long[raw.length];
-    final long[] batchValues = new long[raw.length];
+    final int numThreads = Runtime.getRuntime().availableProcessors();
+    final long[][] masksPerThread = new long[numThreads][rawLen];
+    final long[][] valuesPerThread = new long[numThreads][rawLen];
 
-    for (int i = 0; i < n; i++) {
+    IntStream.range(0, n).parallel().forEach(i -> {
+      int threadId = (int) (Thread.currentThread().threadId() % numThreads);
       final int idx = indices[i];
       final int pid = paletteIds[i] & (int) bitMask;
       final int cell = idx / valuesPerLong;
       final int pos = idx % valuesPerLong;
-      batchMasks[cell] |= masks[pos];
-      batchValues[cell] |= ((long) pid) << shifts[pos];
+      masksPerThread[threadId][cell] |= masks[pos];
+      valuesPerThread[threadId][cell] |= ((long) pid) << shifts[pos];
+    });
+
+    final long[] batchMasks = new long[rawLen];
+    final long[] batchValues = new long[rawLen];
+    for (int j = 0; j < rawLen; j++) {
+      for (int t = 0; t < numThreads; t++) {
+        batchMasks[j] |= masksPerThread[t][j];
+        batchValues[j] |= valuesPerThread[t][j];
+      }
     }
 
-    final int rawLen = raw.length;
-    int i = 0;
-    final int vectorSize = 4;
-    while (i < rawLen) {
-      int limit = Math.min(i + vectorSize, rawLen);
-      for (int j = i; j < limit; j++) {
-        raw[j] = (raw[j] & ~batchMasks[j]) | batchValues[j];
-      }
-      i += vectorSize;
-    }
+    IntStream.range(0, rawLen).parallel().forEach(j -> raw[j] = (raw[j] & ~batchMasks[j]) | batchValues[j]);
 
     section.recalcBlockCounts();
   }
