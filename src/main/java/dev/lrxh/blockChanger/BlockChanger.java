@@ -34,7 +34,10 @@ import org.bukkit.craftbukkit.CraftChunk;
 import org.bukkit.craftbukkit.block.data.CraftBlockData;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -428,10 +431,17 @@ public class BlockChanger {
    * @param clearEntities whether to clear non-player entities during restore
    */
   public static void restoreCuboidSnapshot(final CuboidSnapshot snapshot, final boolean clearEntities) {
-    for (final Map.Entry<Chunk, ChunkSectionSnapshot> entry : snapshot.getSnapshots().entrySet()) {
-      restoreChunkBlockSnapshot(entry.getKey(), entry.getValue(), clearEntities);
-    }
+    CompletableFuture<?>[] futures = snapshot.getSnapshots().entrySet().stream()
+      .map(entry -> {
+        Chunk chunk = entry.getKey();
+        ChunkSectionSnapshot section = entry.getValue();
+        return restoreChunkBlockSnapshot(chunk, section, clearEntities)
+          .thenRun(() -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));
+      })
+      .toArray(CompletableFuture[]::new);
 
-    LightingService.updateLighting(snapshot.getSnapshots().keySet(), true);
+    CompletableFuture.allOf(futures)
+      .thenRun(() -> LightingService.updateLighting(snapshot.getSnapshots().keySet(), false));
   }
+
 }
