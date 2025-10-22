@@ -360,8 +360,8 @@ public class BlockChanger {
         CompletableFuture<Chunk> chunkFuture = chunkCache.computeIfAbsent(chunkKey,
           k -> bukkitWorld.getChunkAtAsync(chunkX, chunkZ, false));
 
-        return chunkFuture.thenRunAsync(() -> {
-          final ChunkAccess access = ((CraftChunk) chunkFuture.join()).getHandle(ChunkStatus.FULL);
+        return chunkFuture.thenAcceptAsync(chunk -> {
+          final ChunkAccess access = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
           LevelChunkSection[] sections = access.getSections();
           LevelChunkSection section = sections[sectionIndex];
           if (section == null) {
