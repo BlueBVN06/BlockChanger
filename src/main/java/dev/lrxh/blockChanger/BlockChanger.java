@@ -34,10 +34,7 @@ import org.bukkit.craftbukkit.CraftChunk;
 import org.bukkit.craftbukkit.block.data.CraftBlockData;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -185,7 +182,7 @@ public class BlockChanger {
 
       if (section.hasOnlyAir() && newSection.hasOnlyAir()) return;
 
-      currentSections[i] = true ? newSection.copy() : newSection;
+      currentSections[i] = newSection.copy();
     });
   }
 
@@ -386,12 +383,15 @@ public class BlockChanger {
       })
       .toList();
 
-    return CompletableFuture.allOf(chunkFutures.toArray(new CompletableFuture[0]))
-      .thenRunAsync(() -> {
+    return CompletableFuture
+      .allOf(chunkCache.values().toArray(new CompletableFuture[0]))
+      .thenApply(v -> chunkCache.values().stream()
+        .map(f -> f.getNow(null))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+      )
+      .thenAcceptAsync(changedChunks -> {
         if (updateLighting && !groups.isEmpty()) {
-          final Set<Chunk> changedChunks = chunkCache.values().stream()
-            .map(CompletableFuture::join)
-            .collect(Collectors.toSet());
           LightingService.updateLighting(changedChunks, true);
         }
       });
