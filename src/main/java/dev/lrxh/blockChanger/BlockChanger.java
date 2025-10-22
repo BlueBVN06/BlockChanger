@@ -152,7 +152,7 @@ public class BlockChanger {
     }
 
     final LevelChunkSection[] newSections = snapshot.sections();
-    setSections(chunkAccess, newSections, level, true);
+    setSections(chunkAccess, newSections, level);
   }
 
   /**
@@ -165,10 +165,9 @@ public class BlockChanger {
    * @param chunkAccess the chunk to modify
    * @param newSections the sections to apply
    * @param level       server level used to create empty sections when needed
-   * @param copy        if true, copy the provided new sections before applying them
    * @throws IllegalArgumentException if the provided sections array length differs from the current
    */
-  private static void setSections(final ChunkAccess chunkAccess, final LevelChunkSection[] newSections, final ServerLevel level, final boolean copy) {
+  private static void setSections(final ChunkAccess chunkAccess, final LevelChunkSection[] newSections, final ServerLevel level) {
     final LevelChunkSection[] currentSections = chunkAccess.getSections();
 
     if (currentSections.length != newSections.length) {
@@ -186,16 +185,16 @@ public class BlockChanger {
 
       if (section.hasOnlyAir() && newSection.hasOnlyAir()) return;
 
-      currentSections[i] = copy ? newSection.copy() : newSection;
+      currentSections[i] = true ? newSection.copy() : newSection;
     });
   }
 
   /**
-   * Create an empty chunk section with default air blocks and default biome.
+   * Create an empty chunk section with default air blocks and default biomes.
    * <p>
-   * This helper builds the state and biome paletted containers used by LevelChunkSection.
+   * This helper builds the state and biomes paletted containers used by LevelChunkSection.
    *
-   * @param level level used to obtain biome registry and default holder
+   * @param level level used to obtain biomes registry and default holder
    * @return a new empty {@link LevelChunkSection}
    */
   private static LevelChunkSection createEmptySection(final Level level) {

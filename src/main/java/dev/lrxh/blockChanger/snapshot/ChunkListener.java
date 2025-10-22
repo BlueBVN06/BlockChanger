@@ -23,7 +23,7 @@ public class ChunkListener implements Listener {
 
     if (queuedChunkSnapshot == null)
       return;
-    if (event.getChunk().getWorld().getName() != queuedChunkSnapshot.worldName())
+    if (!event.getChunk().getWorld().getName().equals(queuedChunkSnapshot.worldName()))
       return;
     Bukkit.getScheduler().runTask(plugin, () -> BlockChanger.restoreChunkBlockSnapshot(event.getChunk(), queuedChunkSnapshot.snapshot(), true));
   }
