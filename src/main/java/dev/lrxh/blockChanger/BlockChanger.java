@@ -2,6 +2,7 @@ package dev.lrxh.blockChanger;
 
 import dev.lrxh.blockChanger.lighting.LightingService;
 import dev.lrxh.blockChanger.snapshot.ChunkListener;
+import dev.lrxh.blockChanger.snapshot.ChunkSectionKey;
 import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import dev.lrxh.blockChanger.util.GroupBuffer;
@@ -318,16 +319,19 @@ public class BlockChanger {
 
     final ConcurrentMap<BlockData, net.minecraft.world.level.block.state.BlockState> stateCache =
       new ConcurrentHashMap<>(Math.max(16, blocks.size() >>> 2));
-    final ConcurrentHashMap<Long, GroupBuffer> groups =
+
+    final ConcurrentHashMap<ChunkSectionKey, GroupBuffer> groups =
       new ConcurrentHashMap<>(Math.max(16, blocks.size() >>> 4));
 
     blocks.entrySet().parallelStream().forEach(entry -> {
       final Location loc = entry.getKey();
       final BlockData bd = entry.getValue();
 
-      final long chunkKey = (((long) (loc.getBlockX() >> 4)) << 32) | ((loc.getBlockZ() >> 4) & 0xFFFFFFFFL);
+      final int chunkX = loc.getBlockX() >> 4;
+      final int chunkZ = loc.getBlockZ() >> 4;
       final int sectionIndex = level.getSectionIndex(loc.getBlockY());
-      final long combinedKey = (chunkKey << 4) | (sectionIndex & 0xF);
+
+      final ChunkSectionKey key = new ChunkSectionKey(chunkX, chunkZ, sectionIndex);
 
       final net.minecraft.world.level.block.state.BlockState state =
         stateCache.computeIfAbsent(bd, k -> ((CraftBlockData) k).getState());
@@ -337,23 +341,23 @@ public class BlockChanger {
       final int bz = loc.getBlockZ();
       final int idx = ((by & 15) << 8) | ((bz & 15) << 4) | (bx & 15);
 
-      groups.computeIfAbsent(combinedKey, k -> new GroupBuffer(8)).append(idx, state);
+      groups.computeIfAbsent(key, k -> new GroupBuffer(8)).append(idx, state);
     });
 
-    final ConcurrentHashMap<Long, CompletableFuture<Chunk>> chunkCache = new ConcurrentHashMap<>();
-
+    final ConcurrentHashMap<ChunkPos, CompletableFuture<Chunk>> chunkCache = new ConcurrentHashMap<>();
 
     List<CompletableFuture<Void>> chunkFutures = groups.entrySet().stream()
       .map(entry -> {
-        final long combinedKey = entry.getKey();
+        final ChunkSectionKey key = entry.getKey();
         final GroupBuffer gb = entry.getValue();
 
-        final int sectionIndex = (int) (combinedKey & 0xF);
-        final long chunkKey = combinedKey >>> 4;
-        final int chunkX = (int) (chunkKey >> 32);
-        final int chunkZ = (int) (chunkKey & 0xFFFFFFFFL);
+        final int sectionIndex = key.sectionIndex();
+        final int chunkX = key.chunkX();
+        final int chunkZ = key.chunkZ();
 
-        CompletableFuture<Chunk> chunkFuture = chunkCache.computeIfAbsent(chunkKey,
+        final ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+
+        CompletableFuture<Chunk> chunkFuture = chunkCache.computeIfAbsent(pos,
           k -> bukkitWorld.getChunkAtAsync(chunkX, chunkZ, false));
 
         return chunkFuture.thenAcceptAsync(chunk -> {
@@ -393,9 +397,14 @@ public class BlockChanger {
       .thenAcceptAsync(changedChunks -> {
         if (updateLighting && !groups.isEmpty()) {
           LightingService.updateLighting(changedChunks, true);
+        } else {
+          for (Chunk chunk : changedChunks) {
+            bukkitWorld.refreshChunk(chunk.getX(), chunk.getZ());
+          }
         }
       });
   }
+
 
   /**
    * Request a lighting update for a set of chunks asynchronously.
