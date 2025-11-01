@@ -1,40 +1,64 @@
 package dev.lrxh.blockChanger;
 
+import com.google.common.collect.ImmutableList;
+import com.mojang.serialization.Lifecycle;
 import dev.lrxh.blockChanger.lighting.LightingService;
 import dev.lrxh.blockChanger.snapshot.ChunkListener;
 import dev.lrxh.blockChanger.snapshot.ChunkSectionKey;
 import dev.lrxh.blockChanger.snapshot.ChunkSectionSnapshot;
 import dev.lrxh.blockChanger.snapshot.CuboidSnapshot;
 import dev.lrxh.blockChanger.util.GroupBuffer;
+import dev.lrxh.blockChanger.world.VirtualLevelStorageSource;
+import dev.lrxh.blockChanger.world.VirtualWorld;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.WorldLoader;
+import net.minecraft.server.dedicated.DedicatedServerProperties;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.progress.ChunkProgressListener;
 import net.minecraft.util.BitStorage;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Level;
+import net.minecraft.world.level.*;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.Palette;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.dimension.LevelStem;
+import net.minecraft.world.level.levelgen.WorldDimensions;
+import net.minecraft.world.level.levelgen.WorldOptions;
+import net.minecraft.world.level.levelgen.presets.WorldPresets;
+import net.minecraft.world.level.storage.LevelStorageSource;
+import net.minecraft.world.level.storage.PrimaryLevelData;
 import org.apache.logging.log4j.util.InternalApi;
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.craftbukkit.CraftChunk;
+import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.block.data.CraftBlockData;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.PluginDisableEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
+import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -53,6 +77,8 @@ public class BlockChanger {
     null
   );
   private static JavaPlugin plugin;
+  private static Field worldsField;
+  private static Set<VirtualWorld> loadedWorlds;
 
   public static void initialize(final JavaPlugin plugin) {
     plugin.getServer().getPluginManager().registerEvents(new ChunkListener(plugin), plugin);
@@ -71,6 +97,25 @@ public class BlockChanger {
       MASK_CACHE[bits - 1] = masks;
     }
     BlockChanger.plugin = plugin;
+    VirtualLevelStorageSource.warmup();
+    try {
+      worldsField = CraftServer.class.getDeclaredField("worlds");
+      worldsField.setAccessible(true);
+    } catch (Exception ignored) {
+    }
+
+    loadedWorlds = new HashSet<>();
+
+    plugin.getServer().getPluginManager().registerEvents(new Listener() {
+      @EventHandler
+      public void onServerShutdown(PluginDisableEvent event) {
+        if (event.getPlugin().getName().equals(plugin.getName())) {
+          for (VirtualWorld world : loadedWorlds) {
+            world.unload();
+          }
+        }
+      }
+    }, plugin);
   }
 
   /**
@@ -163,7 +208,6 @@ public class BlockChanger {
    * @param chunkAccess the chunk to modify
    * @param newSections the sections to apply
    * @param level       server level used to create empty sections when needed
-   * @throws IllegalArgumentException if the provided sections array length differs from the current
    */
   private static void setSections(final ChunkAccess chunkAccess, final LevelChunkSection[] newSections, final ServerLevel level) {
     final LevelChunkSection[] currentSections = chunkAccess.getSections();
@@ -307,7 +351,7 @@ public class BlockChanger {
    *
    * @param blocks         map of locations to block data to apply
    * @param updateLighting if true, run lighting updates for all affected chunks
-   * @return a CompletableFuture that completes once the work and optional lighting updates begin
+   * @return a {@link CompletableFuture} that completes once the work and optional lighting updates begin
    */
   public static CompletableFuture<Void> setBlocks(final Map<Location, BlockData> blocks, final boolean updateLighting) {
     if (blocks == null || blocks.isEmpty()) {
@@ -405,12 +449,135 @@ public class BlockChanger {
       });
   }
 
+  /**
+   * Asynchronously creates an in-memory virtual world that does not persist to disk.
+   * <p>
+   * The world is configured using the provided {@link WorldCreator} and behaves
+   * like a normal {@link org.bukkit.World}, including support for game rules,
+   * world borders, and biome generation. However, it exists entirely in memory,
+   * making it ideal for temporary scenarios such as minigame arenas.
+   * <p>
+   * The returned {@link CompletableFuture} completes once the world has been fully
+   * initialized and loaded. World initialization is done asynchronously.
+   * Note: Although the world functions like a standard {@link org.bukkit.World},
+   * it will not be saved to disk, and changes are lost when the server shuts down.
+   *
+   * @param creator the configuration settings for the virtual world
+   * @return a {@link CompletableFuture} that completes with the loaded {@link VirtualWorld}
+   */
+  @SuppressWarnings("UnstableApiUsage")
+  public static CompletableFuture<VirtualWorld> createVirtualWorld(WorldCreator creator) {
+    return CompletableFuture.supplyAsync(() -> {
+
+      final MinecraftServer server = MinecraftServer.getServer();
+      final CraftServer craftServer = (CraftServer) Bukkit.getServer();
+
+      final WorldLoader.DataLoadContext context = craftServer.getServer().worldLoader;
+
+      final LevelStorageSource storageSource = LevelStorageSource.createDefault(craftServer.getWorldContainer().toPath());
+
+      final ResourceKey<LevelStem> actualDimension = switch (creator.environment()) {
+        case NORMAL -> LevelStem.OVERWORLD;
+        case NETHER -> LevelStem.NETHER;
+        case THE_END -> LevelStem.END;
+        default -> null; // This can't be reached
+      };
+
+      LevelStorageSource.LevelStorageAccess
+        levelStorageAccess = VirtualLevelStorageSource.createVirtual(
+        storageSource,
+        creator.name(),
+        craftServer.getWorldContainer().toPath(),
+        actualDimension
+      );
+
+      final RegistryAccess.Frozen registryAccess = context.datapackDimensions();
+      @SuppressWarnings("OptionalGetWithoutIsPresent") final Registry<LevelStem> contextLevelStemRegistry = registryAccess.lookup(Registries.LEVEL_STEM).get();
+
+      final WorldOptions worldOptions = new WorldOptions(creator.seed(), creator.generateStructures(), creator.bonusChest());
+      final DedicatedServerProperties.WorldDimensionData properties = new DedicatedServerProperties.WorldDimensionData(
+        GsonHelper.parse(creator.generatorSettings().isEmpty() ? "{}" : creator.generatorSettings()),
+        creator.type().name().toLowerCase(Locale.ROOT)
+      );
+      final LevelSettings levelSettings = new LevelSettings(
+        creator.name(),
+        GameType.byId(craftServer.getDefaultGameMode().getValue()),
+        creator.hardcore(),
+        Difficulty.EASY,
+        true,
+        new GameRules(context.dataConfiguration().enabledFeatures()),
+        context.dataConfiguration()
+      );
+      final WorldDimensions worldDimensions = properties.create(context.datapackWorldgen());
+      final WorldDimensions.Complete complete = worldDimensions.bake(contextLevelStemRegistry);
+      final Lifecycle lifecycle = complete.lifecycle().add(context.datapackWorldgen().allRegistriesLifecycle());
+      final PrimaryLevelData primaryLevelData = new PrimaryLevelData(levelSettings, worldOptions, complete.specialWorldProperty(), lifecycle);
+      final LevelStem levelStem = WorldPresets.createNormalWorldDimensions(context.datapackWorldgen()).dimensions().get(LevelStem.OVERWORLD);
+      final ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath(creator.key().namespace(), creator.key().value()));
+
+      final ChunkProgressListener listener = craftServer.getServer().progressListenerFactory.create(primaryLevelData.getGameRules().getInt(GameRules.RULE_SPAWN_CHUNK_RADIUS));
+      final ServerLevel serverLevel = new ServerLevel(
+        server,
+        EXECUTOR,
+        levelStorageAccess,
+        primaryLevelData,
+        dimensionKey,
+        levelStem,
+        listener,
+        primaryLevelData.isDebugWorld(),
+        BiomeManager.obfuscateSeed(primaryLevelData.worldGenOptions().seed()),
+        ImmutableList.of(),
+        true,
+        server.overworld().getRandomSequences(),
+        creator.environment(),
+        Objects.requireNonNull(creator.generator()),
+        Objects.requireNonNull(creator.biomeProvider())
+      );
+
+      craftServer.getServer().addLevel(serverLevel);
+      serverLevel.setSpawnSettings(true);
+
+      Listener chunkUnload = new Listener() {
+        @EventHandler
+        public void onChunkUnload(ChunkLoadEvent e) {
+          if (e.getWorld().getName().equalsIgnoreCase(creator.name())) {
+            e.getChunk().addPluginChunkTicket(plugin);
+          }
+        }
+      };
+
+      Bukkit.getPluginManager().registerEvents(chunkUnload, plugin);
+
+      Bukkit.getScheduler().getMainThreadExecutor(plugin).execute(() -> {
+        WorldBorder worldborder = serverLevel.getWorldBorder();
+        worldborder.applySettings(primaryLevelData.getWorldBorder());
+        new WorldLoadEvent(serverLevel.getWorld()).callEvent();
+      });
+
+      try {
+        @SuppressWarnings("unchecked") Map<String, World> worlds = (Map<String, World>) worldsField.get(Bukkit.getServer());
+        worlds.remove(serverLevel.getWorld().getName());
+      } catch (Exception ignored) {
+
+      }
+      VirtualWorld v = new VirtualWorld(serverLevel, chunkUnload);
+
+      loadedWorlds.add(v);
+
+      return v;
+    }, EXECUTOR);
+  }
+
+  @InternalApi
+  public static void removeVirtualWorld(VirtualWorld world) {
+    loadedWorlds.remove(world);
+  }
 
   /**
    * Request a lighting update for a set of chunks asynchronously.
    *
    * @param chunks set of chunks that need lighting recalculation
-   * @return a CompletableFuture that completes once the lighting task is scheduled
+   * @return a {@link CompletableFuture} that completes once the lighting task is scheduled
    */
   public static CompletableFuture<Void> updateLighting(final Set<Chunk> chunks) {
     return CompletableFuture.runAsync(() -> LightingService.updateLighting(chunks, true));

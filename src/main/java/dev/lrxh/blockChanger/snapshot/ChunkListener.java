@@ -9,6 +9,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.Set;
+
 public class ChunkListener implements Listener {
   private final JavaPlugin plugin;
 
@@ -25,6 +27,11 @@ public class ChunkListener implements Listener {
       return;
     if (!event.getChunk().getWorld().getName().equals(queuedChunkSnapshot.worldName()))
       return;
-    Bukkit.getScheduler().runTask(plugin, () -> BlockChanger.restoreChunkBlockSnapshot(event.getChunk(), queuedChunkSnapshot.snapshot(), true));
+    Bukkit.getScheduler().runTask(plugin, () -> {
+      BlockChanger.restoreChunkBlockSnapshot(event.getChunk(), queuedChunkSnapshot.snapshot(), true);
+      BlockChanger.updateLighting(Set.of(event.getChunk()));
+    });
+
   }
+
 }
