@@ -494,7 +494,7 @@ public class BlockChanger {
       final RegistryAccess.Frozen registryAccess = context.datapackDimensions();
       @SuppressWarnings("OptionalGetWithoutIsPresent") final Registry<LevelStem> contextLevelStemRegistry = registryAccess.lookup(Registries.LEVEL_STEM).get();
 
-      final WorldOptions worldOptions = new WorldOptions(creator.seed(), creator.generateStructures(), creator.bonusChest());
+      final WorldOptions worldOptions = new WorldOptions(creator.seed(), creator.generateStructures(), false);
       final DedicatedServerProperties.WorldDimensionData properties = new DedicatedServerProperties.WorldDimensionData(
         GsonHelper.parse(creator.generatorSettings().isEmpty() ? "{}" : creator.generatorSettings()),
         creator.type().name().toLowerCase(Locale.ROOT)
@@ -611,8 +611,8 @@ public class BlockChanger {
         Chunk chunk = entry.getKey();
         ChunkSectionSnapshot section = entry.getValue();
         return restoreChunkBlockSnapshot(chunk, section, clearEntities)
-          .thenRun(() -> { Bukkit.getScheduler().runTask(plugin, () -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));});
-          //.thenRun(() -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));
+          //.thenRun(() -> { Bukkit.getScheduler().runTask(plugin, () -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));});
+          .thenRun(() -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));
       })
       .toArray(CompletableFuture[]::new);
 
