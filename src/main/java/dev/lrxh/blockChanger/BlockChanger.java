@@ -611,7 +611,8 @@ public class BlockChanger {
         Chunk chunk = entry.getKey();
         ChunkSectionSnapshot section = entry.getValue();
         return restoreChunkBlockSnapshot(chunk, section, clearEntities)
-          .thenRun(() -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));
+          .thenRun(() -> { Bukkit.getScheduler().runTask(plugin, () -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));});
+          //.thenRun(() -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ()));
       })
       .toArray(CompletableFuture[]::new);
 
